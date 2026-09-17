@@ -1,0 +1,944 @@
+/* =========================
+   DASHBOARD
+========================= */
+
+.dashboard {
+  width: 100%;
+}
+
+.page-heading {
+  margin-bottom: 25px;
+}
+
+.page-heading h2 {
+  font-size: 26px;
+  margin-bottom: 6px;
+}
+
+.page-heading p {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+
+/* =========================
+   STAT CARDS
+========================= */
+
+.stats-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(4, 1fr);
+
+  gap: 20px;
+
+  margin-bottom: 25px;
+}
+
+.stat-card {
+  background: white;
+
+  padding: 22px;
+
+  border: 1px solid #e5e7eb;
+
+  border-radius: 10px;
+
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.stat-title {
+  color: #6b7280;
+
+  font-size: 14px;
+
+  margin-bottom: 12px;
+}
+
+.stat-value {
+  font-size: 30px;
+
+  font-weight: 700;
+
+  margin-bottom: 5px;
+}
+
+.stat-description {
+  color: #9ca3af;
+
+  font-size: 12px;
+}
+
+
+/* =========================
+   DASHBOARD GRID
+========================= */
+
+.dashboard-grid {
+  display: grid;
+
+  grid-template-columns:
+    2fr 1fr;
+
+  gap: 20px;
+
+  margin-bottom: 25px;
+}
+
+
+.dashboard-card {
+  background: white;
+
+  border: 1px solid #e5e7eb;
+
+  border-radius: 10px;
+
+  padding: 22px;
+
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+
+/* =========================
+   CARD HEADER
+========================= */
+
+.card-header {
+  margin-bottom: 20px;
+}
+
+.card-header h3 {
+  font-size: 17px;
+
+  margin-bottom: 5px;
+}
+
+.card-header p {
+  font-size: 13px;
+
+  color: #6b7280;
+}
+
+
+/* =========================
+   CHART
+========================= */
+
+.chart-container {
+  width: 100%;
+
+  height: 280px;
+}
+
+
+/* =========================
+   STATUS
+========================= */
+
+.status-section {
+  margin-top: 35px;
+}
+
+.status-row {
+  display: flex;
+
+  justify-content: space-between;
+
+  margin-bottom: 8px;
+
+  font-size: 14px;
+}
+
+.progress-bar {
+  width: 100%;
+
+  height: 10px;
+
+  background: #e5e7eb;
+
+  border-radius: 10px;
+
+  overflow: hidden;
+
+  margin-bottom: 25px;
+}
+
+.progress-normal {
+  height: 100%;
+
+  background: #22c55e;
+}
+
+.progress-anomaly {
+  height: 100%;
+
+  background: #ef4444;
+}
+
+
+/* =========================
+   TABLE
+========================= */
+
+.recent-card {
+  margin-bottom: 30px;
+}
+
+.table-container {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+
+  border-collapse: collapse;
+}
+
+th {
+  text-align: left;
+
+  font-size: 13px;
+
+  color: #6b7280;
+
+  padding: 14px;
+
+  border-bottom: 1px solid #e5e7eb;
+}
+
+td {
+  padding: 14px;
+
+  font-size: 14px;
+
+  border-bottom: 1px solid #f1f5f9;
+}
+
+
+/* =========================
+   RISK BADGES
+========================= */
+
+.risk-high {
+  display: inline-block;
+
+  padding: 5px 10px;
+
+  border-radius: 20px;
+
+  font-size: 12px;
+
+  font-weight: 600;
+
+  background: #fee2e2;
+
+  color: #b91c1c;
+}
+
+.risk-medium {
+  display: inline-block;
+
+  padding: 5px 10px;
+
+  border-radius: 20px;
+
+  font-size: 12px;
+
+  font-weight: 600;
+
+  background: #fef3c7;
+
+  color: #92400e;
+}
+/* =========================
+   COMPONENTS PAGE
+========================= */
+
+.components-page {
+  width: 100%;
+}
+
+
+/* =========================
+   CONTROLS
+========================= */
+
+.component-controls {
+  display: flex;
+
+  gap: 15px;
+
+  margin-bottom: 20px;
+}
+
+.component-controls input {
+  flex: 1;
+
+  padding: 12px 14px;
+
+  border: 1px solid #d1d5db;
+
+  border-radius: 8px;
+
+  font-size: 14px;
+
+  outline: none;
+}
+
+.component-controls input:focus {
+  border-color: #6b7280;
+}
+
+.component-controls select {
+  width: 160px;
+
+  padding: 12px 14px;
+
+  border: 1px solid #d1d5db;
+
+  border-radius: 8px;
+
+  background: white;
+
+  font-size: 14px;
+
+  outline: none;
+}
+
+
+/* =========================
+   COMPONENT TABLE
+========================= */
+
+.components-card {
+  background: white;
+
+  border: 1px solid #e5e7eb;
+
+  border-radius: 10px;
+
+  padding: 20px;
+
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.component-table-container {
+  width: 100%;
+
+  overflow-x: auto;
+}
+
+.component-table-container table {
+  min-width: 900px;
+}
+
+
+/* =========================
+   STATUS BADGES
+========================= */
+
+.status-badge {
+  display: inline-block;
+
+  padding: 5px 10px;
+
+  border-radius: 20px;
+
+  font-size: 12px;
+
+  font-weight: 600;
+}
+
+.status-normal {
+  background: #dcfce7;
+
+  color: #166534;
+}
+
+.status-anomaly {
+  background: #fee2e2;
+
+  color: #b91c1c;
+}
+
+
+/* =========================
+   NO RESULTS
+========================= */
+
+.no-results {
+  text-align: center;
+
+  padding: 30px;
+
+  color: #6b7280;
+}
+
+/* =========================
+   COMPONENT DETAILS
+========================= */
+
+.component-details-page {
+  width: 100%;
+}
+
+
+/* =========================
+   BACK BUTTON
+========================= */
+
+.back-button {
+  display: inline-block;
+
+  margin-bottom: 20px;
+
+  text-decoration: none;
+
+  color: #374151;
+
+  font-size: 14px;
+
+  font-weight: 500;
+}
+
+.back-button:hover {
+  text-decoration: underline;
+}
+
+
+/* =========================
+   DETAIL CARD
+========================= */
+
+.detail-card {
+  background: white;
+
+  border: 1px solid #e5e7eb;
+
+  border-radius: 10px;
+
+  padding: 22px;
+
+  margin-bottom: 20px;
+
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+
+/* =========================
+   DETAIL HEADER
+========================= */
+
+.detail-header {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+}
+
+.detail-header h3 {
+  margin: 0 0 5px;
+
+  font-size: 20px;
+}
+
+.detail-header p {
+  margin: 0;
+
+  color: #6b7280;
+
+  font-size: 13px;
+}
+
+
+/* =========================
+   MEASUREMENT GRID
+========================= */
+
+.measurement-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(4, 1fr);
+
+  gap: 20px;
+
+  margin-bottom: 20px;
+}
+
+
+.measurement-card {
+  background: white;
+
+  border: 1px solid #e5e7eb;
+
+  border-radius: 10px;
+
+  padding: 20px;
+
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+
+.measurement-card span {
+  display: block;
+
+  color: #6b7280;
+
+  font-size: 13px;
+
+  margin-bottom: 10px;
+}
+
+
+.measurement-card strong {
+  display: block;
+
+  font-size: 24px;
+
+  margin-bottom: 5px;
+}
+
+
+.measurement-card small {
+  color: #9ca3af;
+
+  font-size: 12px;
+}
+
+
+/* =========================
+   DETAIL CHART
+========================= */
+
+.detail-chart {
+  width: 100%;
+
+  height: 350px;
+}
+
+
+/* =========================
+   ANALYSIS GRID
+========================= */
+
+.analysis-grid {
+  display: grid;
+
+  grid-template-columns:
+    1fr 1fr;
+
+  gap: 20px;
+}
+
+
+/* =========================
+   ANOMALY SCORE
+========================= */
+
+.score-container {
+  margin-top: 20px;
+}
+
+
+.score-value {
+  font-size: 42px;
+
+  font-weight: 700;
+
+  margin-bottom: 15px;
+}
+
+
+.score-bar {
+  width: 100%;
+
+  height: 12px;
+
+  background: #e5e7eb;
+
+  border-radius: 20px;
+
+  overflow: hidden;
+}
+
+
+.score-fill {
+  height: 100%;
+
+  background: #ef4444;
+
+  border-radius: 20px;
+}
+
+
+/* =========================
+   RISK
+========================= */
+
+.risk-display {
+  margin-top: 20px;
+}
+
+
+.risk-display p {
+  margin-top: 15px;
+
+  color: #6b7280;
+
+  font-size: 14px;
+}
+
+
+/* =========================
+   EXPLANATION
+========================= */
+
+.explanation-box {
+  background: #f8fafc;
+
+  border-left: 4px solid #ef4444;
+
+  padding: 16px;
+
+  border-radius: 6px;
+
+  font-size: 14px;
+
+  line-height: 1.6;
+}
+
+
+/* =========================
+   RECOMMENDATION
+========================= */
+
+.recommendation-card {
+  border-left: 4px solid #f59e0b;
+}
+
+.recommendation-card p {
+  margin: 0;
+
+  font-size: 14px;
+
+  line-height: 1.6;
+}
+
+
+/* =========================
+   COMPONENT LINK
+========================= */
+
+.component-link {
+  color: #2563eb;
+
+  text-decoration: none;
+}
+
+.component-link:hover {
+  text-decoration: underline;
+}
+
+
+/* =========================
+   RESPONSIVE
+========================= */
+
+@media (max-width: 900px) {
+
+  .measurement-grid {
+    grid-template-columns:
+      repeat(2, 1fr);
+  }
+
+  .analysis-grid {
+    grid-template-columns: 1fr;
+  }
+
+}
+
+
+@media (max-width: 600px) {
+
+  .measurement-grid {
+    grid-template-columns: 1fr;
+  }
+
+}
+/* =========================================================
+   PREDICTION PAGE
+========================================================= */
+
+.prediction-page {
+  width: 100%;
+}
+
+/* Component Selector */
+
+.prediction-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.prediction-controls label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.prediction-controls select {
+  width: 180px;
+  padding: 11px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: white;
+  font-size: 14px;
+  outline: none;
+}
+
+.prediction-controls select:focus {
+  border-color: #2563eb;
+}
+
+/* Component Information */
+
+.prediction-component-info {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+.prediction-component-info div {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 18px;
+}
+
+.prediction-component-info span {
+  display: block;
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 7px;
+}
+
+.prediction-component-info strong {
+  font-size: 17px;
+  color: #111827;
+}
+
+/* Module B */
+
+.prediction-section,
+.prediction-chart-card,
+.safety-comparison-card,
+.prediction-verdict-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.prediction-section-header,
+.prediction-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
+.prediction-section-header h3,
+.prediction-card-header h3,
+.safety-comparison-card h3,
+.prediction-verdict-card h3 {
+  margin: 0 0 5px;
+  color: #111827;
+}
+
+.prediction-section-header p,
+.prediction-card-header p,
+.prediction-verdict-card p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+/* Risk Badge */
+
+.prediction-risk-badge {
+  padding: 7px 13px;
+  border-radius: 20px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.prediction-safe-badge {
+  padding: 7px 13px;
+  border-radius: 20px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Summary Cards */
+
+.prediction-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.prediction-stat-card {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 17px;
+}
+
+.prediction-stat-card span {
+  display: block;
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+.prediction-stat-card strong {
+  font-size: 22px;
+  color: #111827;
+}
+
+/* Chart */
+
+.prediction-chart {
+  width: 100%;
+  margin-top: 10px;
+}
+
+/* Safety Comparison */
+
+.safety-comparison {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 35px;
+  margin: 25px 0;
+}
+
+.safety-value {
+  text-align: center;
+}
+
+.safety-value span {
+  display: block;
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+.safety-value strong {
+  font-size: 24px;
+  color: #111827;
+}
+
+.safety-symbol {
+  font-size: 30px;
+  font-weight: 700;
+  color: #dc2626;
+}
+
+.safety-warning {
+  padding: 14px;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.safety-success {
+  padding: 14px;
+  border-radius: 8px;
+  background: #f0fdf4;
+  color: #166534;
+  font-size: 14px;
+}
+
+/* Final Verdict */
+
+.prediction-verdict-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.verdict-reject {
+  padding: 12px 25px;
+  border-radius: 8px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.verdict-pass {
+  padding: 12px 25px;
+  border-radius: 8px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+/* Responsive */
+
+@media (max-width: 1000px) {
+  .prediction-summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .prediction-component-info {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .prediction-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .prediction-controls {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .prediction-controls select {
+    width: 100%;
+  }
+
+  .safety-comparison {
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .prediction-verdict-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
