@@ -1,297 +1,249 @@
+import { useEffect, useState } from "react";
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+  loadCSVData,
+  getComponentIds,
+  getLotIds,
+} from "../utils/csvData";
 
 function Dashboard() {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  // Temporary data
-  // Later this data will come from FastAPI
-  const anomalyData = [
-    { time: "0h", anomalies: 5 },
-    { time: "24h", anomalies: 12 },
-    { time: "48h", anomalies: 18 },
-    { time: "96h", anomalies: 27 },
-    { time: "168h", anomalies: 43 },
-  ];
+  useEffect(() => {
+    loadCSVData()
+      .then((csvData) => {
+        setData(csvData);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error(err);
+        setError("Unable to load CSV data.");
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="page">
+        <h2>Dashboard</h2>
+        <p>Loading real component data...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="page">
+        <h2>Dashboard</h2>
+        <p>{error}</p>
+      </div>
+    );
+  }
+
+  // --------------------------------
+  // REAL DATA CALCULATIONS
+  // --------------------------------
+
+  const componentIds = getComponentIds(data);
+  const lotIds = getLotIds(data);
+
+  // Number of components having at least one defective record
+  const defectiveComponents = componentIds.filter((componentId) =>
+    data.some(
+      (row) =>
+        row.component_id === componentId &&
+        row.defective === 1
+    )
+  ).length;
+
+  // Total defective records
+  const defectiveRecords = data.filter(
+    (row) => row.defective === 1
+  ).length;
+
+  // Records at 168 hours
+  const latestData = data.filter(
+    (row) => row.timestamp_h === 168
+  );
+
+  // Average leakage at 168h
+  const averageLeakage =
+    latestData.length > 0
+      ? latestData.reduce(
+          (sum, row) => sum + row.leakage_uA,
+          0
+        ) / latestData.length
+      : 0;
+
+  // Average IDDQ at 168h
+  const averageIddq =
+    latestData.length > 0
+      ? latestData.reduce(
+          (sum, row) => sum + row.iddq_uA,
+          0
+        ) / latestData.length
+      : 0;
+
+  // Average propagation delay at 168h
+  const averageDelay =
+    latestData.length > 0
+      ? latestData.reduce(
+          (sum, row) => sum + row.prop_delay_ns,
+          0
+        ) / latestData.length
+      : 0;
 
   return (
-    <div className="dashboard">
+    <div className="page">
 
-      {/* Page Heading */}
-
-      <div className="page-heading">
-        <h2>Dashboard</h2>
-
-        <p>
-          Monitor component burn-in screening and anomaly detection.
-        </p>
+      {/* HEADER */}
+      <div className="page-header">
+        <div>
+          <h1>Burn-In Screening Dashboard</h1>
+          <p>
+            AI-driven component screening and anomaly monitoring
+          </p>
+        </div>
       </div>
 
-
-      {/* Summary Cards */}
-
+      {/* SUMMARY CARDS */}
       <div className="stats-grid">
 
         <div className="stat-card">
-          <div className="stat-title">
-            Total Components
-          </div>
-
+          <h3>Total Components</h3>
           <div className="stat-value">
-            1,250
+            {componentIds.length}
           </div>
-
-          <div className="stat-description">
-            Components tested
-          </div>
+          <p>Unique components in dataset</p>
         </div>
 
-
         <div className="stat-card">
-          <div className="stat-title">
-            Normal Components
-          </div>
-
+          <h3>Total Lots</h3>
           <div className="stat-value">
-            1,145
+            {lotIds.length}
           </div>
-
-          <div className="stat-description">
-            Passed screening
-          </div>
+          <p>Production lots</p>
         </div>
 
-
         <div className="stat-card">
-          <div className="stat-title">
-            Anomalies
-          </div>
-
+          <h3>Defective Components</h3>
           <div className="stat-value">
-            105
+            {defectiveComponents}
           </div>
-
-          <div className="stat-description">
-            Detected anomalies
-          </div>
+          <p>Components with defective records</p>
         </div>
 
-
         <div className="stat-card">
-          <div className="stat-title">
-            High Risk
-          </div>
-
+          <h3>Total Records</h3>
           <div className="stat-value">
-            32
+            {data.length}
           </div>
-
-          <div className="stat-description">
-            Need inspection
-          </div>
+          <p>Burn-In measurements</p>
         </div>
 
       </div>
 
-
-      {/* Charts Section */}
-
+      {/* DATA SUMMARY */}
       <div className="dashboard-grid">
 
-        {/* Anomaly Chart */}
-
         <div className="dashboard-card">
+          <h2>Dataset Summary</h2>
 
-          <div className="card-header">
-            <div>
-              <h3>Anomaly Overview</h3>
-
-              <p>
-                Detected anomalies over burn-in time
-              </p>
-            </div>
+          <div className="summary-row">
+            <span>Components</span>
+            <strong>{componentIds.length}</strong>
           </div>
 
-
-          <div className="chart-container">
-
-            <ResponsiveContainer width="100%" height="100%">
-
-              <LineChart data={anomalyData}>
-
-                <CartesianGrid strokeDasharray="3 3" />
-
-                <XAxis dataKey="time" />
-
-                <YAxis />
-
-                <Tooltip />
-
-                <Line
-                  type="monotone"
-                  dataKey="anomalies"
-                  strokeWidth={3}
-                />
-
-              </LineChart>
-
-            </ResponsiveContainer>
-
+          <div className="summary-row">
+            <span>Lots</span>
+            <strong>{lotIds.length}</strong>
           </div>
 
+          <div className="summary-row">
+            <span>Measurement Records</span>
+            <strong>{data.length}</strong>
+          </div>
+
+          <div className="summary-row">
+            <span>Defective Records</span>
+            <strong>{defectiveRecords}</strong>
+          </div>
+
+          <div className="summary-row">
+            <span>Time Points</span>
+            <strong>0h, 24h, 96h, 168h</strong>
+          </div>
         </div>
 
-
-        {/* Component Status */}
-
+        {/* 168H METRICS */}
         <div className="dashboard-card">
+          <h2>168h Screening Metrics</h2>
 
-          <div className="card-header">
-
-            <div>
-              <h3>Component Status</h3>
-
-              <p>
-                Current screening distribution
-              </p>
-            </div>
-
+          <div className="summary-row">
+            <span>Average Leakage</span>
+            <strong>
+              {averageLeakage.toFixed(2)} µA
+            </strong>
           </div>
 
-
-          <div className="status-section">
-
-            <div className="status-row">
-              <span>Normal</span>
-              <strong>91.6%</strong>
-            </div>
-
-            <div className="progress-bar">
-              <div
-                className="progress-normal"
-                style={{ width: "91.6%" }}
-              ></div>
-            </div>
-
-
-            <div className="status-row">
-              <span>Anomaly</span>
-              <strong>8.4%</strong>
-            </div>
-
-            <div className="progress-bar">
-              <div
-                className="progress-anomaly"
-                style={{ width: "8.4%" }}
-              ></div>
-            </div>
-
+          <div className="summary-row">
+            <span>Average IDDQ</span>
+            <strong>
+              {averageIddq.toFixed(2)} µA
+            </strong>
           </div>
 
+          <div className="summary-row">
+            <span>Average Propagation Delay</span>
+            <strong>
+              {averageDelay.toFixed(2)} ns
+            </strong>
+          </div>
         </div>
 
       </div>
 
+      {/* LOTS */}
+      <div className="dashboard-card">
+        <h2>Production Lots</h2>
 
-      {/* Recent Anomalies */}
+        <div className="lot-list">
+          {lotIds.map((lotId) => {
 
-      <div className="dashboard-card recent-card">
+            const lotData = data.filter(
+              (row) => row.lot_id === lotId
+            );
 
-        <div className="card-header">
+            const lotComponents = [
+              ...new Set(
+                lotData.map((row) => row.component_id)
+              ),
+            ];
 
-          <div>
-            <h3>Recent Anomalies</h3>
+            const lotDefective = lotData.filter(
+              (row) => row.defective === 1
+            ).length;
 
-            <p>
-              Components requiring attention
-            </p>
-          </div>
+            return (
+              <div className="lot-item" key={lotId}>
+                <div>
+                  <strong>{lotId}</strong>
 
+                  <p>
+                    {lotComponents.length} components
+                  </p>
+                </div>
+
+                <div>
+                  <span>
+                    {lotDefective} defective records
+                  </span>
+                </div>
+              </div>
+            );
+          })}
         </div>
-
-
-        <div className="table-container">
-
-          <table>
-
-            <thead>
-
-              <tr>
-                <th>Component ID</th>
-                <th>Lot ID</th>
-                <th>Anomaly Score</th>
-                <th>Risk Level</th>
-                <th>Status</th>
-              </tr>
-
-            </thead>
-
-
-            <tbody>
-
-              <tr>
-                <td>C-001</td>
-                <td>LOT-101</td>
-                <td>0.94</td>
-                <td>
-                  <span className="risk-high">
-                    High
-                  </span>
-                </td>
-                <td>Flagged</td>
-              </tr>
-
-
-              <tr>
-                <td>C-018</td>
-                <td>LOT-104</td>
-                <td>0.81</td>
-                <td>
-                  <span className="risk-medium">
-                    Medium
-                  </span>
-                </td>
-                <td>Review</td>
-              </tr>
-
-
-              <tr>
-                <td>C-027</td>
-                <td>LOT-107</td>
-                <td>0.76</td>
-                <td>
-                  <span className="risk-medium">
-                    Medium
-                  </span>
-                </td>
-                <td>Review</td>
-              </tr>
-
-
-              <tr>
-                <td>C-041</td>
-                <td>LOT-109</td>
-                <td>0.96</td>
-                <td>
-                  <span className="risk-high">
-                    High
-                  </span>
-                </td>
-                <td>Flagged</td>
-              </tr>
-
-            </tbody>
-
-          </table>
-
-        </div>
-
       </div>
 
     </div>

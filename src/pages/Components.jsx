@@ -1,109 +1,96 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import {
+  loadCSVData,
+  getComponentIds,
+} from "../utils/csvData";
 
 function Components() {
-
-  // Temporary data
-  // Later this data will come from FastAPI
-  const components = [
-    {
-      id: "C-001",
-      lot: "LOT-101",
-      value0h: 10,
-      value24h: 12,
-      value96h: 18,
-      value168h: 25,
-      anomalyScore: 0.12,
-      status: "Normal",
-    },
-    {
-      id: "C-002",
-      lot: "LOT-101",
-      value0h: 10,
-      value24h: 15,
-      value96h: 25,
-      value168h: 45,
-      anomalyScore: 0.94,
-      status: "Anomaly",
-    },
-    {
-      id: "C-003",
-      lot: "LOT-102",
-      value0h: 9,
-      value24h: 10,
-      value96h: 11,
-      value168h: 12,
-      anomalyScore: 0.08,
-      status: "Normal",
-    },
-    {
-      id: "C-004",
-      lot: "LOT-102",
-      value0h: 11,
-      value24h: 13,
-      value96h: 20,
-      value168h: 31,
-      anomalyScore: 0.71,
-      status: "Anomaly",
-    },
-    {
-      id: "C-005",
-      lot: "LOT-103",
-      value0h: 10,
-      value24h: 11,
-      value96h: 13,
-      value168h: 15,
-      anomalyScore: 0.15,
-      status: "Normal",
-    },
-  ];
-
-
-  // Search text
+  const [data, setData] = useState([]);
+  const [components, setComponents] = useState([]);
   const [search, setSearch] = useState("");
-
-  // Selected filter
   const [statusFilter, setStatusFilter] = useState("All");
+  const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    loadCSVData()
+      .then((csv) => {
+        setData(csv);
 
-  // Filter components
+        const componentIds = getComponentIds(csv);
+
+        const componentList = componentIds.map((id) => {
+          const rows = csv.filter(
+            (item) => item.component_id === id
+          );
+
+          const first = rows.find(
+            (item) => item.timestamp_h === 0
+          );
+
+          const value24 = rows.find(
+            (item) => item.timestamp_h === 24
+          );
+
+          const value96 = rows.find(
+            (item) => item.timestamp_h === 96
+          );
+
+          const value168 = rows.find(
+            (item) => item.timestamp_h === 168
+          );
+
+          const defective = rows.some(
+            (item) => item.defective === 1
+          );
+
+          return {
+            id,
+            lot: rows[0]?.lot_id,
+            value0h: first?.leakage_uA ?? 0,
+            value24h: value24?.leakage_uA ?? 0,
+            value96h: value96?.leakage_uA ?? 0,
+            value168h: value168?.leakage_uA ?? 0,
+            status: defective ? "Anomaly" : "Normal",
+          };
+        });
+
+        setComponents(componentList);
+        setLoading(false);
+      })
+      .catch((error) => {
+        console.error(error);
+        setLoading(false);
+      });
+  }, []);
+
   const filteredComponents = components.filter((component) => {
+    const searchText = search.toLowerCase();
 
     const matchesSearch =
-      component.id
-        .toLowerCase()
-        .includes(search.toLowerCase()) ||
-      component.lot
-        .toLowerCase()
-        .includes(search.toLowerCase());
-
+      component.id.toLowerCase().includes(searchText) ||
+      component.lot.toLowerCase().includes(searchText);
 
     const matchesStatus =
       statusFilter === "All" ||
       component.status === statusFilter;
 
-
     return matchesSearch && matchesStatus;
   });
 
+  if (loading) {
+    return <div>Loading component data...</div>;
+  }
 
   return (
     <div className="components-page">
 
-      {/* Page Heading */}
-
       <div className="page-heading">
-
         <h2>Components</h2>
-
         <p>
-          Monitor individual component burn-in screening results.
+          Monitor components from the uploaded Burn-In dataset.
         </p>
-
       </div>
-
-
-      {/* Search and Filter */}
 
       <div className="component-controls">
 
@@ -113,7 +100,6 @@ function Components() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-
 
         <select
           value={statusFilter}
@@ -126,9 +112,6 @@ function Components() {
 
       </div>
 
-
-      {/* Component Table */}
-
       <div className="components-card">
 
         <div className="component-table-container">
@@ -136,20 +119,16 @@ function Components() {
           <table>
 
             <thead>
-
               <tr>
                 <th>Component ID</th>
                 <th>Lot ID</th>
-                <th>0h</th>
-                <th>24h</th>
-                <th>96h</th>
-                <th>168h</th>
-                <th>Anomaly Score</th>
+                <th>0h Leakage</th>
+                <th>24h Leakage</th>
+                <th>96h Leakage</th>
+                <th>168h Leakage</th>
                 <th>Status</th>
               </tr>
-
             </thead>
-
 
             <tbody>
 
@@ -158,76 +137,56 @@ function Components() {
                 <tr key={component.id}>
 
                   <td>
-                      <Link
-                            to={`/components/${component.id}`}
-                              className="component-link"
-                         >
-                    <strong>{component.id}</strong>
+                    <Link
+                      to={`/components/${component.id}`}
+                      className="component-link"
+                    >
+                      <strong>
+                        {component.id}
+                      </strong>
                     </Link>
                   </td>
 
+                  <td>{component.lot}</td>
+
                   <td>
-                    {component.lot}
+                    {component.value0h.toFixed(3)} µA
                   </td>
 
                   <td>
-                    {component.value0h} µA
+                    {component.value24h.toFixed(3)} µA
                   </td>
 
                   <td>
-                    {component.value24h} µA
+                    {component.value96h.toFixed(3)} µA
                   </td>
 
                   <td>
-                    {component.value96h} µA
+                    {component.value168h.toFixed(3)} µA
                   </td>
 
                   <td>
-                    {component.value168h} µA
-                  </td>
-
-                  <td>
-                    {component.anomalyScore}
-                  </td>
-
-                  <td>
-
                     {component.status === "Anomaly" ? (
-
                       <span className="status-badge status-anomaly">
                         Anomaly
                       </span>
-
                     ) : (
-
                       <span className="status-badge status-normal">
                         Normal
                       </span>
-
                     )}
-
                   </td>
 
                 </tr>
 
               ))}
 
-
-              {/* No result */}
-
               {filteredComponents.length === 0 && (
-
                 <tr>
-
-                  <td
-                    colSpan="8"
-                    className="no-results"
-                  >
+                  <td colSpan="7" className="no-results">
                     No components found.
                   </td>
-
                 </tr>
-
               )}
 
             </tbody>
@@ -237,6 +196,11 @@ function Components() {
         </div>
 
       </div>
+
+      <p style={{ marginTop: "15px", color: "#6b7280" }}>
+        Showing {filteredComponents.length} of{" "}
+        {components.length} components from the CSV dataset.
+      </p>
 
     </div>
   );

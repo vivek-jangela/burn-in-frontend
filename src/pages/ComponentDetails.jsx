@@ -1,4 +1,5 @@
-import { useParams, Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
 import {
   LineChart,
   Line,
@@ -9,60 +10,72 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-function ComponentDetails() {
+import {
+  loadCSVData,
+  getComponentData,
+} from "../utils/csvData";
 
+function ComponentDetails() {
   const { id } = useParams();
 
-  // Temporary data
-  // Later this will come from FastAPI
-  const component = {
-    id: id || "C-002",
-    lot: "LOT-101",
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-    value0h: 10,
-    value24h: 15,
-    value96h: 25,
-    value168h: 45,
+  useEffect(() => {
+    loadCSVData()
+      .then((data) => {
+        const componentRows = getComponentData(data, id);
+        setRows(componentRows);
+        setLoading(false);
+      })
+      .catch((error) => {
+        console.error(error);
+        setLoading(false);
+      });
+  }, [id]);
 
-    anomalyScore: 0.94,
+  if (loading) {
+    return <div>Loading component...</div>;
+  }
 
-    status: "Anomaly",
+  if (rows.length === 0) {
+    return (
+      <div>
+        <h2>Component not found</h2>
+        <Link to="/components">
+          Back to Components
+        </Link>
+      </div>
+    );
+  }
 
-    risk: "High",
+  const component = rows[0];
 
-    explanation:
-      "The component shows significant leakage-current drift compared with its lot baseline.",
+  const defective = rows.some(
+    (row) => row.defective === 1
+  );
 
-    recommendation:
-      "Send the component for QA inspection.",
-  };
+  const first = rows.find(
+    (row) => row.timestamp_h === 0
+  );
 
+  const last = rows.find(
+    (row) => row.timestamp_h === 168
+  );
 
-  // Data for graph
-  const chartData = [
-    {
-      time: "0h",
-      value: component.value0h,
-    },
-    {
-      time: "24h",
-      value: component.value24h,
-    },
-    {
-      time: "96h",
-      value: component.value96h,
-    },
-    {
-      time: "168h",
-      value: component.value168h,
-    },
-  ];
+  const leakageIncrease =
+    first && last
+      ? last.leakage_uA - first.leakage_uA
+      : 0;
 
+  const risk = defective
+    ? "High"
+    : leakageIncrease > 15
+    ? "Medium"
+    : "Low";
 
   return (
     <div className="component-details-page">
-
-      {/* Back Button */}
 
       <Link
         to="/components"
@@ -71,277 +84,169 @@ function ComponentDetails() {
         ← Back to Components
       </Link>
 
-
-      {/* Page Heading */}
-
       <div className="page-heading">
-
-        <h2>Component Details</h2>
-
+        <h2>{component.component_id}</h2>
         <p>
-          Detailed burn-in screening analysis.
+          Component details from the real CSV dataset.
         </p>
-
       </div>
-
-
-      {/* Component Information */}
 
       <div className="detail-card">
 
         <div className="detail-header">
 
           <div>
-
-            <h3>{component.id}</h3>
+            <h3>
+              {component.component_id}
+            </h3>
 
             <p>
-              Lot ID: {component.lot}
+              Lot: {component.lot_id}
             </p>
-
           </div>
 
-
-          <span className="status-badge status-anomaly">
-            {component.status}
+          <span
+            className={
+              defective
+                ? "status-badge status-anomaly"
+                : "status-badge status-normal"
+            }
+          >
+            {defective ? "Defective" : "Normal"}
           </span>
 
         </div>
 
-      </div>
+        <div className="measurement-grid">
 
+          {rows.map((row) => (
+            <div
+              className="measurement-card"
+              key={row.timestamp_h}
+            >
+              <span>
+                {row.timestamp_h}h
+              </span>
 
-      {/* Measurement Cards */}
+              <strong>
+                {row.leakage_uA.toFixed(3)} µA
+              </strong>
 
-      <div className="measurement-grid">
-
-        <div className="measurement-card">
-
-          <span>0h</span>
-
-          <strong>
-            {component.value0h} µA
-          </strong>
-
-          <small>
-            Initial value
-          </small>
-
-        </div>
-
-
-        <div className="measurement-card">
-
-          <span>24h</span>
-
-          <strong>
-            {component.value24h} µA
-          </strong>
-
-          <small>
-            Early screening
-          </small>
-
-        </div>
-
-
-        <div className="measurement-card">
-
-          <span>96h</span>
-
-          <strong>
-            {component.value96h} µA
-          </strong>
-
-          <small>
-            Mid screening
-          </small>
-
-        </div>
-
-
-        <div className="measurement-card">
-
-          <span>168h</span>
-
-          <strong>
-            {component.value168h} µA
-          </strong>
-
-          <small>
-            Final measurement
-          </small>
+              <small>
+                Leakage
+              </small>
+            </div>
+          ))}
 
         </div>
 
       </div>
 
+      <div className="detail-card detail-chart">
 
-      {/* Time Series Chart */}
+        <h3>
+          Leakage Current Trend
+        </h3>
 
-      <div className="detail-card">
+        <ResponsiveContainer
+          width="100%"
+          height={350}
+        >
+          <LineChart data={rows}>
 
-        <div className="card-header">
+            <CartesianGrid strokeDasharray="3 3" />
 
-          <h3>
-            Burn-In Time-Series
-          </h3>
+            <XAxis
+              dataKey="timestamp_h"
+              label={{
+                value: "Time (hours)",
+                position: "insideBottom",
+                offset: -5,
+              }}
+            />
 
-          <p>
-            Leakage current change during burn-in testing.
-          </p>
+            <YAxis
+              label={{
+                value: "Leakage (µA)",
+                angle: -90,
+                position: "insideLeft",
+              }}
+            />
 
-        </div>
+            <Tooltip />
 
+            <Line
+              type="monotone"
+              dataKey="leakage_uA"
+              stroke="#2563eb"
+              strokeWidth={3}
+            />
 
-        <div className="detail-chart">
-
-          <ResponsiveContainer
-            width="100%"
-            height={350}
-          >
-
-            <LineChart data={chartData}>
-
-              <CartesianGrid strokeDasharray="3 3" />
-
-              <XAxis dataKey="time" />
-
-              <YAxis />
-
-              <Tooltip />
-
-              <Line
-                type="monotone"
-                dataKey="value"
-                stroke="#ef4444"
-                strokeWidth={3}
-                dot={{ r: 5 }}
-              />
-
-            </LineChart>
-
-          </ResponsiveContainer>
-
-        </div>
+          </LineChart>
+        </ResponsiveContainer>
 
       </div>
-
-
-      {/* Analysis Section */}
 
       <div className="analysis-grid">
 
-        {/* Anomaly Score */}
-
         <div className="detail-card">
 
-          <div className="card-header">
-
-            <h3>
-              Anomaly Score
-            </h3>
-
-            <p>
-              ML model confidence for abnormal behavior.
-            </p>
-
-          </div>
-
-
-          <div className="score-container">
-
-            <div className="score-value">
-              {component.anomalyScore}
-            </div>
-
-            <div className="score-bar">
-
-              <div
-                className="score-fill"
-                style={{
-                  width: `${component.anomalyScore * 100}%`,
-                }}
-              />
-
-            </div>
-
-          </div>
-
-        </div>
-
-
-        {/* Risk Level */}
-
-        <div className="detail-card">
-
-          <div className="card-header">
-
-            <h3>
-              Risk Level
-            </h3>
-
-          </div>
-
+          <h3>
+            Screening Result
+          </h3>
 
           <div className="risk-display">
 
-            <span className="risk-high">
-              HIGH RISK
+            <span>
+              Risk Level
             </span>
 
-            <p>
-              Component requires further inspection.
-            </p>
+            <strong>
+              {risk}
+            </strong>
 
           </div>
 
-        </div>
-
-      </div>
-
-
-      {/* Explainability */}
-
-      <div className="detail-card">
-
-        <div className="card-header">
-
-          <h3>
-            🤖 ML Explanation
-          </h3>
-
           <p>
-            Why the system flagged this component.
+            Defective flag from dataset:
+            {" "}
+            <strong>
+              {defective ? "Yes" : "No"}
+            </strong>
           </p>
 
         </div>
 
+        <div className="detail-card">
 
-        <div className="explanation-box">
+          <h3>
+            Explanation
+          </h3>
 
-          {component.explanation}
+          <div className="explanation-box">
+
+            {defective
+              ? "This component is marked defective in the provided dataset."
+              : "This component is not marked defective in the provided dataset."}
+
+          </div>
 
         </div>
 
       </div>
 
+      <div className="recommendation-card">
 
-      {/* Recommendation */}
-
-      <div className="detail-card recommendation-card">
-
-        <div className="card-header">
-
-          <h3>
-            ⚠️ Recommended Action
-          </h3>
-
-        </div>
-
+        <h3>
+          QA Recommendation
+        </h3>
 
         <p>
-          {component.recommendation}
+
+          {defective
+            ? "Send this component for QA inspection."
+            : "Component can continue normal screening."}
+
         </p>
 
       </div>

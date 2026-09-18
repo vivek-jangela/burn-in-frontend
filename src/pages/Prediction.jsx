@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
 import {
   LineChart,
   Line,
@@ -7,338 +8,247 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  ReferenceLine,
 } from "recharts";
 
-const predictionData = {
-  C1024: {
-    component_id: "C1024",
-    lot_id: "L07",
-
-    timestamps_available: ["0h", "24h"],
-
-    raw_values: {
-      iddq: {
-        "0h": 12.1,
-        "24h": 14.8,
-      },
-
-      leakage: {
-        "0h": 10.2,
-        "24h": 13.9,
-      },
-
-      prop_delay: {
-        "0h": 5.4,
-        "24h": 5.6,
-      },
-    },
-
-    module_a: {
-      anomaly_score: 0.82,
-      flagged: true,
-      method: "zscore",
-      reason: "Leakage 45µA vs lot median 10µA (6.2 MAD)",
-    },
-
-    module_b: {
-      predicted_168h: {
-        leakage: 52.1,
-      },
-
-      predicted_drift_rate: 2.3,
-
-      safety_slope: 1.1,
-
-      flagged: true,
-
-      reason:
-        "Predicted leakage drift rate (2.3µA/hr) exceeds global safety threshold (1.1µA/hr)",
-    },
-
-    final_verdict: "REJECT",
-
-    explanation:
-      "Flagged by both modules: statistical outlier in current lot AND predicted to exceed safe drift by 168h",
-  },
-};
+import {
+  loadCSVData,
+  getComponentIds,
+  getComponentData,
+} from "../utils/csvData";
 
 function Prediction() {
+  const [data, setData] = useState([]);
+  const [componentIds, setComponentIds] = useState([]);
   const [selectedComponent, setSelectedComponent] =
-    useState("C1024");
+    useState("");
+  const [loading, setLoading] = useState(true);
 
-  const data = predictionData[selectedComponent];
+  useEffect(() => {
+    loadCSVData()
+      .then((csv) => {
 
-  const chartData = [
-    {
-      time: "0h",
-      leakage: data.raw_values.leakage["0h"],
-      type: "Actual",
-    },
+        setData(csv);
 
-    {
-      time: "24h",
-      leakage: data.raw_values.leakage["24h"],
-      type: "Actual",
-    },
+        const ids = getComponentIds(csv);
 
-    {
-      time: "168h",
-      leakage: data.module_b.predicted_168h.leakage,
-      type: "Predicted",
-    },
-  ];
+        setComponentIds(ids);
 
-  const driftRisk = data.module_b.flagged;
+        if (ids.length > 0) {
+          setSelectedComponent(ids[0]);
+        }
+
+        setLoading(false);
+      })
+      .catch((error) => {
+        console.error(error);
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) {
+    return <div>Loading prediction data...</div>;
+  }
+
+  const rows = getComponentData(
+    data,
+    selectedComponent
+  );
+
+  if (rows.length === 0) {
+    return <div>No component data found.</div>;
+  }
+
+  const component = rows[0];
+
+  const defective = rows.some(
+    (row) => row.defective === 1
+  );
+
+  const leakage0 = rows.find(
+    (row) => row.timestamp_h === 0
+  )?.leakage_uA ?? 0;
+
+  const leakage24 = rows.find(
+    (row) => row.timestamp_h === 24
+  )?.leakage_uA ?? 0;
+
+  const leakage168 = rows.find(
+    (row) => row.timestamp_h === 168
+  )?.leakage_uA ?? 0;
+
+  const driftRate =
+    (leakage24 - leakage0) / 24;
 
   return (
     <div className="prediction-page">
 
-      {/* Page Heading */}
       <div className="page-heading">
-        <h2>Prediction</h2>
+
+        <h2>
+          Prediction
+        </h2>
 
         <p>
-          Predict future component behavior and identify unsafe
-          drift before the end of burn-in testing.
+          Component time-series screening data from the CSV.
         </p>
+
       </div>
 
-      {/* Component Selector */}
       <div className="prediction-controls">
-        <label htmlFor="component-select">
+
+        <label>
           Select Component
         </label>
 
         <select
-          id="component-select"
           value={selectedComponent}
           onChange={(e) =>
             setSelectedComponent(e.target.value)
           }
         >
-          {Object.keys(predictionData).map((componentId) => (
-            <option key={componentId} value={componentId}>
-              {componentId}
+
+          {componentIds.map((id) => (
+            <option
+              key={id}
+              value={id}
+            >
+              {id}
             </option>
           ))}
+
         </select>
+
       </div>
 
-      {/* Component Information */}
       <div className="prediction-component-info">
 
-        <div>
-          <span>Component ID</span>
-          <strong>{data.component_id}</strong>
-        </div>
+        <strong>
+          Component:
+        </strong>{" "}
+        {component.component_id}
 
-        <div>
-          <span>Lot ID</span>
-          <strong>{data.lot_id}</strong>
-        </div>
+        {" | "}
 
-        <div>
-          <span>Timestamps Available</span>
+        <strong>
+          Lot:
+        </strong>{" "}
+        {component.lot_id}
+
+      </div>
+
+      <div className="prediction-summary-grid">
+
+        <div className="prediction-stat-card">
+
+          <span>
+            Leakage 0h
+          </span>
+
           <strong>
-            {data.timestamps_available.join(", ")}
+            {leakage0.toFixed(3)} µA
           </strong>
+
+        </div>
+
+        <div className="prediction-stat-card">
+
+          <span>
+            Leakage 24h
+          </span>
+
+          <strong>
+            {leakage24.toFixed(3)} µA
+          </strong>
+
+        </div>
+
+        <div className="prediction-stat-card">
+
+          <span>
+            Leakage 168h
+          </span>
+
+          <strong>
+            {leakage168.toFixed(3)} µA
+          </strong>
+
+        </div>
+
+        <div className="prediction-stat-card">
+
+          <span>
+            Early Drift Rate
+          </span>
+
+          <strong>
+            {driftRate.toFixed(4)} µA/hr
+          </strong>
+
         </div>
 
       </div>
 
-      {/* Module B */}
       <div className="prediction-section">
 
-        <div className="prediction-section-header">
-          <div>
-            <h3>Module B — Drift Prediction</h3>
+        <h3>
+          Leakage Time Series
+        </h3>
 
-            <p>
-              Time-series prediction of component leakage
-              behavior.
-            </p>
-          </div>
-
-          {driftRisk ? (
-            <span className="prediction-risk-badge">
-              Drift Risk
-            </span>
-          ) : (
-            <span className="prediction-safe-badge">
-              Within Safety Range
-            </span>
-          )}
-        </div>
-
-        {/* Prediction Cards */}
-        <div className="prediction-summary-grid">
-
-          <div className="prediction-stat-card">
-            <span>Predicted 168h Leakage</span>
-
-            <strong>
-              {data.module_b.predicted_168h.leakage} µA
-            </strong>
-          </div>
-
-          <div className="prediction-stat-card">
-            <span>Predicted Drift Rate</span>
-
-            <strong>
-              {data.module_b.predicted_drift_rate} µA/hr
-            </strong>
-          </div>
-
-          <div className="prediction-stat-card">
-            <span>Safety Slope</span>
-
-            <strong>
-              {data.module_b.safety_slope} µA/hr
-            </strong>
-          </div>
-
-          <div className="prediction-stat-card">
-            <span>Module B Flagged</span>
-
-            <strong>
-              {data.module_b.flagged ? "Yes" : "No"}
-            </strong>
-          </div>
-
-        </div>
-
-      </div>
-
-      {/* Prediction Chart */}
-      <div className="prediction-chart-card">
-
-        <div className="prediction-card-header">
-
-          <div>
-            <h3>Leakage Prediction</h3>
-
-            <p>
-              Actual measurements and predicted 168h
-              leakage value.
-            </p>
-          </div>
-
-        </div>
-
-        <div className="prediction-chart">
-
-          <ResponsiveContainer
-            width="100%"
-            height={380}
-          >
-            <LineChart data={chartData}>
-
-              <CartesianGrid strokeDasharray="3 3" />
-
-              <XAxis dataKey="time" />
-
-              <YAxis
-                label={{
-                  value: "Leakage (µA)",
-                  angle: -90,
-                  position: "insideLeft",
-                }}
-              />
-
-              <Tooltip
-                formatter={(value) => [
-                  `${value} µA`,
-                  "Leakage",
-                ]}
-              />
-
-              <ReferenceLine
-                y={data.module_b.predicted_168h.leakage}
-                label="Predicted 168h"
-              />
-
-              <Line
-                type="monotone"
-                dataKey="leakage"
-                stroke="#2563eb"
-                strokeWidth={3}
-                dot={{ r: 5 }}
-              />
-
-            </LineChart>
-          </ResponsiveContainer>
-
-        </div>
-
-      </div>
-
-      {/* Safety Comparison */}
-      <div className="safety-comparison-card">
-
-        <h3>Drift Safety Analysis</h3>
-
-        <div className="safety-comparison">
-
-          <div className="safety-value">
-
-            <span>Predicted Drift Rate</span>
-
-            <strong>
-              {data.module_b.predicted_drift_rate} µA/hr
-            </strong>
-
-          </div>
-
-          <div className="safety-symbol">
-            {data.module_b.predicted_drift_rate >
-            data.module_b.safety_slope
-              ? ">"
-              : "≤"}
-          </div>
-
-          <div className="safety-value">
-
-            <span>Safety Slope</span>
-
-            <strong>
-              {data.module_b.safety_slope} µA/hr
-            </strong>
-
-          </div>
-
-        </div>
-
-        <div
-          className={
-            driftRisk
-              ? "safety-warning"
-              : "safety-success"
-          }
+        <ResponsiveContainer
+          width="100%"
+          height={350}
         >
-          {data.module_b.reason}
-        </div>
+
+          <LineChart data={rows}>
+
+            <CartesianGrid strokeDasharray="3 3" />
+
+            <XAxis
+              dataKey="timestamp_h"
+            />
+
+            <YAxis />
+
+            <Tooltip />
+
+            <Line
+              type="monotone"
+              dataKey="leakage_uA"
+              stroke="#2563eb"
+              strokeWidth={3}
+            />
+
+          </LineChart>
+
+        </ResponsiveContainer>
 
       </div>
 
-      {/* Final Verdict */}
       <div className="prediction-verdict-card">
 
-        <div>
-          <h3>Final Verdict</h3>
+        <h3>
+          Dataset Result
+        </h3>
 
-          <p>{data.explanation}</p>
-        </div>
+        <h2>
+          {defective
+            ? "DEFECTIVE"
+            : "NORMAL"}
+        </h2>
 
-        <div
-          className={
-            data.final_verdict === "REJECT"
-              ? "verdict-reject"
-              : "verdict-pass"
-          }
-        >
-          {data.final_verdict}
-        </div>
+        <p>
+          This result comes from the{" "}
+          <strong>defective</strong>{" "}
+          column in your provided CSV dataset.
+        </p>
+
+        <p>
+          Actual 168h leakage:
+          {" "}
+          <strong>
+            {leakage168.toFixed(3)} µA
+          </strong>
+        </p>
 
       </div>
 

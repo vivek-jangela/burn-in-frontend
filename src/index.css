@@ -942,3 +942,353 @@ td {
     align-items: flex-start;
   }
 }
+/* =========================================================
+   NEW DASHBOARD DATA SUMMARY
+   ========================================================= */
+
+.page {
+  width: 100%;
+}
+
+.page-header {
+  margin-bottom: 25px;
+}
+
+.page-header h1 {
+  font-size: 26px;
+  margin-bottom: 6px;
+}
+
+.page-header p {
+  color: #6b7280;
+  font-size: 14px;
+  margin: 0;
+}
+
+
+/* =========================================================
+   DASHBOARD STAT CARD
+   ========================================================= */
+
+.stat-card h3 {
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 12px;
+}
+
+
+/* =========================================================
+   SUMMARY ROW
+   ========================================================= */
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.summary-row:last-child {
+  border-bottom: none;
+}
+
+.summary-row span {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.summary-row strong {
+  color: #111827;
+  font-size: 14px;
+}
+
+
+/* =========================================================
+   LOT LIST
+   ========================================================= */
+
+.lot-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.lot-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.lot-item:last-child {
+  border-bottom: none;
+}
+
+.lot-item strong {
+  font-size: 15px;
+  color: #111827;
+}
+
+.lot-item p {
+  margin: 4px 0 0;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.lot-item span {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+
+/* =========================================================
+   DASHBOARD RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 900px) {
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+}
+
+
+@media (max-width: 600px) {
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .page {
+    padding: 10px;
+  }
+
+  .page-header h1 {
+    font-size: 22px;
+  }
+
+  .lot-item {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+}/* =========================================================
+   DATA UPLOAD PAGE
+   ========================================================= */
+
+.data-upload-page {
+  width: 100%;
+}
+
+
+/* Upload Card */
+
+.upload-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+
+/* Card Header */
+
+.upload-card-header {
+  margin-bottom: 22px;
+}
+
+.upload-card-header h3 {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+
+.upload-card-header p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+
+/* File Upload */
+
+.file-upload-area {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.file-upload-area label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.file-upload-area input[type="file"] {
+  width: fit-content;
+  padding: 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: white;
+  font-size: 13px;
+}
+
+
+/* Selected File */
+
+.selected-file {
+  padding: 14px;
+  margin-bottom: 18px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.selected-file > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.file-icon {
+  font-size: 24px;
+}
+
+.selected-file strong {
+  font-size: 14px;
+  color: #111827;
+}
+
+.selected-file p {
+  margin: 3px 0 0;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+
+/* Analyze Button */
+
+.analyze-button {
+  padding: 11px 20px;
+  border: none;
+  border-radius: 8px;
+  background: #2563eb;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.analyze-button:hover {
+  background: #1d4ed8;
+}
+
+.analyze-button:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+
+/* Messages */
+
+.upload-message {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.upload-message.success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.upload-message.error {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+
+/* =========================================================
+   ANALYSIS PIPELINE
+   ========================================================= */
+
+.pipeline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 5px;
+}
+
+.pipeline-step {
+  min-width: 175px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.pipeline-step > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pipeline-step strong {
+  display: block;
+  font-size: 13px;
+  color: #111827;
+}
+
+.pipeline-step p {
+  margin: 3px 0 0;
+  color: #6b7280;
+  font-size: 11px;
+}
+
+.pipeline-arrow {
+  font-size: 20px;
+  color: #9ca3af;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 900px) {
+
+  .pipeline {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pipeline-step {
+    width: auto;
+  }
+
+  .pipeline-arrow {
+    text-align: center;
+    transform: rotate(90deg);
+  }
+
+}
