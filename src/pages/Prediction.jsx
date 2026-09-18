@@ -21,11 +21,14 @@ function Prediction() {
   const [componentIds, setComponentIds] = useState([]);
   const [selectedComponent, setSelectedComponent] =
     useState("");
+  const [analysisResults, setAnalysisResults] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadCSVData()
-      .then((csv) => {
+    async function loadPredictionData() {
+      try {
+        // Load uploaded CSV data
+        const csv = await loadCSVData();
 
         setData(csv);
 
@@ -37,12 +40,25 @@ function Prediction() {
           setSelectedComponent(ids[0]);
         }
 
+        // Load FastAPI analysis results
+        const storedResults =
+          localStorage.getItem("burnInAnalysisResults");
+
+        if (storedResults) {
+          setAnalysisResults(JSON.parse(storedResults));
+        }
+
         setLoading(false);
-      })
-      .catch((error) => {
-        console.error(error);
+      } catch (error) {
+        console.error(
+          "Failed to load prediction data:",
+          error
+        );
         setLoading(false);
-      });
+      }
+    }
+
+    loadPredictionData();
   }, []);
 
   if (loading) {
@@ -60,24 +76,51 @@ function Prediction() {
 
   const component = rows[0];
 
-  const defective = rows.some(
-    (row) => row.defective === 1
+  // Find backend result for selected component
+  const analysis = analysisResults.find(
+    (result) =>
+      result.component_id === selectedComponent
   );
 
-  const leakage0 = rows.find(
-    (row) => row.timestamp_h === 0
-  )?.leakage_uA ?? 0;
+  const moduleB = analysis?.module_b;
 
-  const leakage24 = rows.find(
-    (row) => row.timestamp_h === 24
-  )?.leakage_uA ?? 0;
+  const finalVerdict =
+    analysis?.final_verdict || "NOT ANALYZED";
 
-  const leakage168 = rows.find(
-    (row) => row.timestamp_h === 168
-  )?.leakage_uA ?? 0;
+  const leakage0 =
+    rows.find(
+      (row) => row.timestamp_h === 0
+    )?.leakage_uA ?? 0;
 
-  const driftRate =
+  const leakage24 =
+    rows.find(
+      (row) => row.timestamp_h === 24
+    )?.leakage_uA ?? 0;
+
+  const leakage168 =
+    rows.find(
+      (row) => row.timestamp_h === 168
+    )?.leakage_uA ?? 0;
+
+  // Early drift is kept as a descriptive measurement.
+  // It is NOT used for the final screening decision.
+  const earlyDriftRate =
     (leakage24 - leakage0) / 24;
+
+  // Try the common backend prediction field names
+  const predictedDrift =
+    moduleB?.predicted_drift_rate ??
+    moduleB?.predicted_drift ??
+    moduleB?.drift_rate ??
+    null;
+
+  const safetySlope =
+    moduleB?.safety_slope ??
+    moduleB?.threshold ??
+    null;
+
+  const moduleBFlagged =
+    moduleB?.flagged;
 
   return (
     <div className="prediction-page">
@@ -89,7 +132,8 @@ function Prediction() {
         </h2>
 
         <p>
-          Component time-series screening data from the CSV.
+          Module B drift prediction from the FastAPI
+          screening pipeline.
         </p>
 
       </div>
@@ -181,7 +225,7 @@ function Prediction() {
           </span>
 
           <strong>
-            {driftRate.toFixed(4)} µA/hr
+            {earlyDriftRate.toFixed(4)} µA/hr
           </strong>
 
         </div>
@@ -224,31 +268,107 @@ function Prediction() {
 
       </div>
 
+      <div className="prediction-summary-grid">
+
+        <div className="prediction-stat-card">
+
+          <span>
+            Predicted Drift Rate
+          </span>
+
+          <strong>
+            {predictedDrift !== null
+              ? Number(predictedDrift).toFixed(4)
+              : "N/A"}
+          </strong>
+
+        </div>
+
+        <div className="prediction-stat-card">
+
+          <span>
+            Safety Slope
+          </span>
+
+          <strong>
+            {safetySlope !== null
+              ? Number(safetySlope).toFixed(4)
+              : "N/A"}
+          </strong>
+
+        </div>
+
+        <div className="prediction-stat-card">
+
+          <span>
+            Module B
+          </span>
+
+          <strong>
+            {moduleBFlagged === undefined
+              ? "N/A"
+              : moduleBFlagged
+              ? "FLAGGED"
+              : "NORMAL"}
+          </strong>
+
+        </div>
+
+        <div className="prediction-stat-card">
+
+          <span>
+            Final Verdict
+          </span>
+
+          <strong>
+            {finalVerdict}
+          </strong>
+
+        </div>
+
+      </div>
+
       <div className="prediction-verdict-card">
 
         <h3>
-          Dataset Result
+          Module B Drift Prediction
         </h3>
 
-        <h2>
-          {defective
-            ? "DEFECTIVE"
-            : "NORMAL"}
-        </h2>
+        {moduleB ? (
+          <>
+            <h2>
+              {moduleBFlagged
+                ? "DRIFT FLAGGED"
+                : "DRIFT WITHIN LIMIT"}
+            </h2>
 
-        <p>
-          This result comes from the{" "}
-          <strong>defective</strong>{" "}
-          column in your provided CSV dataset.
-        </p>
+            <p>
+              {moduleB.reason ||
+                "Module B prediction completed successfully."}
+            </p>
 
-        <p>
-          Actual 168h leakage:
-          {" "}
-          <strong>
-            {leakage168.toFixed(3)} µA
-          </strong>
-        </p>
+            {analysis?.explanation && (
+              <p>
+                <strong>
+                  Screening explanation:
+                </strong>{" "}
+                {analysis.explanation}
+              </p>
+            )}
+          </>
+        ) : (
+          <>
+            <h2>
+              NOT ANALYZED
+            </h2>
+
+            <p>
+              No Module B result was found for this
+              component. Upload and analyze the CSV
+              before viewing backend predictions.
+            </p>
+          </>
+        )}
 
       </div>
 

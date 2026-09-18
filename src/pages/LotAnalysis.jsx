@@ -21,11 +21,15 @@ function LotAnalysis() {
   const [data, setData] = useState([]);
   const [lotIds, setLotIds] = useState([]);
   const [selectedLot, setSelectedLot] = useState("");
+  const [analysisResults, setAnalysisResults] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadCSVData()
-      .then((csv) => {
+    async function loadLotAnalysis() {
+      try {
+        // Load uploaded CSV data
+        const csv = await loadCSVData();
+
         setData(csv);
 
         const lots = getLotIds(csv);
@@ -36,12 +40,27 @@ function LotAnalysis() {
           setSelectedLot(lots[0]);
         }
 
+        // Load FastAPI analysis results
+        const storedResults =
+          localStorage.getItem("burnInAnalysisResults");
+
+        if (storedResults) {
+          setAnalysisResults(
+            JSON.parse(storedResults)
+          );
+        }
+
         setLoading(false);
-      })
-      .catch((error) => {
-        console.error(error);
+      } catch (error) {
+        console.error(
+          "Failed to load lot analysis:",
+          error
+        );
         setLoading(false);
-      });
+      }
+    }
+
+    loadLotAnalysis();
   }, []);
 
   if (loading) {
@@ -61,6 +80,7 @@ function LotAnalysis() {
         ) / lotRows.length
       : 0;
 
+  // Dataset ground truth — informational only
   const defectiveCount = lotRows.filter(
     (row) => row.defective === 1
   ).length;
@@ -83,14 +103,34 @@ function LotAnalysis() {
         (row) => row.timestamp_h === 168
       );
 
-      const value = lastRow?.leakage_uA ?? 0;
+      const value =
+        lastRow?.leakage_uA ?? 0;
+
+      // Find backend result
+      const analysis = analysisResults.find(
+        (result) =>
+          result.component_id === componentId
+      );
+
+      const rejected =
+        analysis?.final_verdict === "REJECT";
 
       return {
         component_id: componentId,
         leakage: value,
+
+        // Dataset ground truth
         defective: rows.some(
           (row) => row.defective === 1
         ),
+
+        // Backend screening result
+        verdict:
+          analysis?.final_verdict ||
+          "NOT ANALYZED",
+
+        rejected,
+        analysis,
       };
     }
   );
@@ -104,8 +144,6 @@ function LotAnalysis() {
         )
       : 0;
 
-  const dynamicThreshold = baseline * 2;
-
   return (
     <div className="lot-analysis-page">
 
@@ -116,7 +154,8 @@ function LotAnalysis() {
         </h2>
 
         <p>
-          Dynamic outlier analysis using the real CSV dataset.
+          Lot-level analysis using Burn-In measurements
+          and backend screening results.
         </p>
 
       </div>
@@ -154,7 +193,9 @@ function LotAnalysis() {
 
         <div className="lot-stat-card">
           <span>Components</span>
-          <strong>{componentIds.length}</strong>
+          <strong>
+            {componentIds.length}
+          </strong>
         </div>
 
         <div className="lot-stat-card">
@@ -165,7 +206,7 @@ function LotAnalysis() {
         </div>
 
         <div className="lot-stat-card">
-          <span>Defective Records</span>
+          <span>Dataset Defective Records</span>
           <strong>
             {defectiveCount}
           </strong>
@@ -201,11 +242,6 @@ function LotAnalysis() {
               label="Lot Baseline"
             />
 
-            <ReferenceLine
-              y={dynamicThreshold}
-              label="Dynamic Threshold"
-            />
-
             <Bar
               dataKey="leakage"
               fill="#2563eb"
@@ -233,7 +269,7 @@ function LotAnalysis() {
                 <th>168h Leakage</th>
                 <th>Deviation</th>
                 <th>Dataset Status</th>
-                <th>Dynamic Check</th>
+                <th>Screening Result</th>
               </tr>
             </thead>
 
@@ -244,12 +280,10 @@ function LotAnalysis() {
                 const deviation =
                   item.leakage - baseline;
 
-                const dynamicAnomaly =
-                  item.leakage >
-                  dynamicThreshold;
-
                 return (
-                  <tr key={item.component_id}>
+                  <tr
+                    key={item.component_id}
+                  >
 
                     <td>
                       {item.component_id}
@@ -282,13 +316,17 @@ function LotAnalysis() {
 
                     <td>
 
-                      {dynamicAnomaly ? (
+                      {item.rejected ? (
                         <span className="status-badge status-anomaly">
-                          Outlier
+                          REJECT
+                        </span>
+                      ) : item.verdict === "PASS" ? (
+                        <span className="status-badge status-normal">
+                          PASS
                         </span>
                       ) : (
-                        <span className="status-badge status-normal">
-                          Within Range
+                        <span className="status-badge">
+                          NOT ANALYZED
                         </span>
                       )}
 

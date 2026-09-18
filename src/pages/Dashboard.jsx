@@ -1,253 +1,231 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   loadCSVData,
   getComponentIds,
-  getLotIds,
 } from "../utils/csvData";
 
-function Dashboard() {
+function Components() {
   const [data, setData] = useState([]);
+  const [components, setComponents] = useState([]);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
   useEffect(() => {
-    loadCSVData()
-      .then((csvData) => {
-        setData(csvData);
+    async function loadComponentData() {
+      try {
+        // Load measurement data from uploaded CSV
+        const csv = await loadCSVData();
+        setData(csv);
+
+        // Load backend analysis results
+        const storedResults =
+          localStorage.getItem("burnInAnalysisResults");
+
+        const analysisResults = storedResults
+          ? JSON.parse(storedResults)
+          : [];
+
+        const componentIds = getComponentIds(csv);
+
+        const componentList = componentIds.map((id) => {
+          const rows = csv.filter(
+            (item) => item.component_id === id
+          );
+
+          const first = rows.find(
+            (item) => item.timestamp_h === 0
+          );
+
+          const value24 = rows.find(
+            (item) => item.timestamp_h === 24
+          );
+
+          const value96 = rows.find(
+            (item) => item.timestamp_h === 96
+          );
+
+          const value168 = rows.find(
+            (item) => item.timestamp_h === 168
+          );
+
+          // Find this component's backend analysis
+          const analysis = analysisResults.find(
+            (result) => result.component_id === id
+          );
+
+          // Backend is now the source of the screening decision
+          const rejected =
+            analysis?.final_verdict === "REJECT";
+
+          return {
+            id,
+            lot: rows[0]?.lot_id ?? "Unknown",
+
+            value0h: first?.leakage_uA ?? 0,
+            value24h: value24?.leakage_uA ?? 0,
+            value96h: value96?.leakage_uA ?? 0,
+            value168h: value168?.leakage_uA ?? 0,
+
+            status: rejected ? "Anomaly" : "Normal",
+
+            // Keep the complete backend result available
+            analysis,
+          };
+        });
+
+        setComponents(componentList);
         setLoading(false);
-      })
-      .catch((err) => {
-        console.error(err);
-        setError("Unable to load CSV data.");
+      } catch (error) {
+        console.error("Failed to load component data:", error);
         setLoading(false);
-      });
+      }
+    }
+
+    loadComponentData();
   }, []);
 
+  const filteredComponents = components.filter((component) => {
+    const searchText = search.toLowerCase();
+
+    const matchesSearch =
+      component.id.toLowerCase().includes(searchText) ||
+      component.lot.toLowerCase().includes(searchText);
+
+    const matchesStatus =
+      statusFilter === "All" ||
+      component.status === statusFilter;
+
+    return matchesSearch && matchesStatus;
+  });
+
   if (loading) {
-    return (
-      <div className="page">
-        <h2>Dashboard</h2>
-        <p>Loading real component data...</p>
-      </div>
-    );
+    return <div>Loading component data...</div>;
   }
-
-  if (error) {
-    return (
-      <div className="page">
-        <h2>Dashboard</h2>
-        <p>{error}</p>
-      </div>
-    );
-  }
-
-  // --------------------------------
-  // REAL DATA CALCULATIONS
-  // --------------------------------
-
-  const componentIds = getComponentIds(data);
-  const lotIds = getLotIds(data);
-
-  // Number of components having at least one defective record
-  const defectiveComponents = componentIds.filter((componentId) =>
-    data.some(
-      (row) =>
-        row.component_id === componentId &&
-        row.defective === 1
-    )
-  ).length;
-
-  // Total defective records
-  const defectiveRecords = data.filter(
-    (row) => row.defective === 1
-  ).length;
-
-  // Records at 168 hours
-  const latestData = data.filter(
-    (row) => row.timestamp_h === 168
-  );
-
-  // Average leakage at 168h
-  const averageLeakage =
-    latestData.length > 0
-      ? latestData.reduce(
-          (sum, row) => sum + row.leakage_uA,
-          0
-        ) / latestData.length
-      : 0;
-
-  // Average IDDQ at 168h
-  const averageIddq =
-    latestData.length > 0
-      ? latestData.reduce(
-          (sum, row) => sum + row.iddq_uA,
-          0
-        ) / latestData.length
-      : 0;
-
-  // Average propagation delay at 168h
-  const averageDelay =
-    latestData.length > 0
-      ? latestData.reduce(
-          (sum, row) => sum + row.prop_delay_ns,
-          0
-        ) / latestData.length
-      : 0;
 
   return (
-    <div className="page">
+    <div className="components-page">
 
-      {/* HEADER */}
-      <div className="page-header">
-        <div>
-          <h1>Burn-In Screening Dashboard</h1>
-          <p>
-            AI-driven component screening and anomaly monitoring
-          </p>
-        </div>
+      <div className="page-heading">
+        <h2>Components</h2>
+        <p>
+          Monitor components from the uploaded Burn-In dataset.
+        </p>
       </div>
 
-      {/* SUMMARY CARDS */}
-      <div className="stats-grid">
+      <div className="component-controls">
 
-        <div className="stat-card">
-          <h3>Total Components</h3>
-          <div className="stat-value">
-            {componentIds.length}
-          </div>
-          <p>Unique components in dataset</p>
-        </div>
+        <input
+          type="text"
+          placeholder="Search Component ID or Lot ID..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
 
-        <div className="stat-card">
-          <h3>Total Lots</h3>
-          <div className="stat-value">
-            {lotIds.length}
-          </div>
-          <p>Production lots</p>
-        </div>
-
-        <div className="stat-card">
-          <h3>Defective Components</h3>
-          <div className="stat-value">
-            {defectiveComponents}
-          </div>
-          <p>Components with defective records</p>
-        </div>
-
-        <div className="stat-card">
-          <h3>Total Records</h3>
-          <div className="stat-value">
-            {data.length}
-          </div>
-          <p>Burn-In measurements</p>
-        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+        >
+          <option value="All">All Status</option>
+          <option value="Normal">Normal</option>
+          <option value="Anomaly">Anomaly</option>
+        </select>
 
       </div>
 
-      {/* DATA SUMMARY */}
-      <div className="dashboard-grid">
+      <div className="components-card">
 
-        <div className="dashboard-card">
-          <h2>Dataset Summary</h2>
+        <div className="component-table-container">
 
-          <div className="summary-row">
-            <span>Components</span>
-            <strong>{componentIds.length}</strong>
-          </div>
+          <table>
 
-          <div className="summary-row">
-            <span>Lots</span>
-            <strong>{lotIds.length}</strong>
-          </div>
+            <thead>
+              <tr>
+                <th>Component ID</th>
+                <th>Lot ID</th>
+                <th>0h Leakage</th>
+                <th>24h Leakage</th>
+                <th>96h Leakage</th>
+                <th>168h Leakage</th>
+                <th>Status</th>
+              </tr>
+            </thead>
 
-          <div className="summary-row">
-            <span>Measurement Records</span>
-            <strong>{data.length}</strong>
-          </div>
+            <tbody>
 
-          <div className="summary-row">
-            <span>Defective Records</span>
-            <strong>{defectiveRecords}</strong>
-          </div>
+              {filteredComponents.map((component) => (
 
-          <div className="summary-row">
-            <span>Time Points</span>
-            <strong>0h, 24h, 96h, 168h</strong>
-          </div>
-        </div>
+                <tr key={component.id}>
 
-        {/* 168H METRICS */}
-        <div className="dashboard-card">
-          <h2>168h Screening Metrics</h2>
+                  <td>
+                    <Link
+                      to={`/components/${component.id}`}
+                      className="component-link"
+                    >
+                      <strong>
+                        {component.id}
+                      </strong>
+                    </Link>
+                  </td>
 
-          <div className="summary-row">
-            <span>Average Leakage</span>
-            <strong>
-              {averageLeakage.toFixed(2)} µA
-            </strong>
-          </div>
+                  <td>{component.lot}</td>
 
-          <div className="summary-row">
-            <span>Average IDDQ</span>
-            <strong>
-              {averageIddq.toFixed(2)} µA
-            </strong>
-          </div>
+                  <td>
+                    {component.value0h.toFixed(3)} µA
+                  </td>
 
-          <div className="summary-row">
-            <span>Average Propagation Delay</span>
-            <strong>
-              {averageDelay.toFixed(2)} ns
-            </strong>
-          </div>
+                  <td>
+                    {component.value24h.toFixed(3)} µA
+                  </td>
+
+                  <td>
+                    {component.value96h.toFixed(3)} µA
+                  </td>
+
+                  <td>
+                    {component.value168h.toFixed(3)} µA
+                  </td>
+
+                  <td>
+                    {component.status === "Anomaly" ? (
+                      <span className="status-badge status-anomaly">
+                        Anomaly
+                      </span>
+                    ) : (
+                      <span className="status-badge status-normal">
+                        Normal
+                      </span>
+                    )}
+                  </td>
+
+                </tr>
+
+              ))}
+
+              {filteredComponents.length === 0 && (
+                <tr>
+                  <td colSpan="7" className="no-results">
+                    No components found.
+                  </td>
+                </tr>
+              )}
+
+            </tbody>
+
+          </table>
+
         </div>
 
       </div>
 
-      {/* LOTS */}
-      <div className="dashboard-card">
-        <h2>Production Lots</h2>
-
-        <div className="lot-list">
-          {lotIds.map((lotId) => {
-
-            const lotData = data.filter(
-              (row) => row.lot_id === lotId
-            );
-
-            const lotComponents = [
-              ...new Set(
-                lotData.map((row) => row.component_id)
-              ),
-            ];
-
-            const lotDefective = lotData.filter(
-              (row) => row.defective === 1
-            ).length;
-
-            return (
-              <div className="lot-item" key={lotId}>
-                <div>
-                  <strong>{lotId}</strong>
-
-                  <p>
-                    {lotComponents.length} components
-                  </p>
-                </div>
-
-                <div>
-                  <span>
-                    {lotDefective} defective records
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      <p style={{ marginTop: "15px", color: "#6b7280" }}>
+        Showing {filteredComponents.length} of{" "}
+        {components.length} components from the CSV dataset.
+      </p>
 
     </div>
   );
 }
 
-export default Dashboard;
+export default Components;

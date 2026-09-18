@@ -37,6 +37,26 @@ function DataUpload() {
     setError("");
 
     try {
+      // --------------------------------------------------
+      // 1. Read and save the uploaded CSV
+      // --------------------------------------------------
+
+      const csvText = await selectedFile.text();
+
+      localStorage.setItem(
+        "burnInUploadedCSV",
+        csvText
+      );
+
+      localStorage.setItem(
+        "burnInUploadedFileName",
+        selectedFile.name
+      );
+
+      // --------------------------------------------------
+      // 2. Send CSV to FastAPI
+      // --------------------------------------------------
+
       const formData = new FormData();
 
       formData.append("file", selectedFile);
@@ -49,23 +69,44 @@ function DataUpload() {
         }
       );
 
+      // --------------------------------------------------
+      // 3. Handle backend errors
+      // --------------------------------------------------
+
       if (!response.ok) {
-        throw new Error(
-          `Server returned ${response.status}`
-        );
+        let errorMessage = `Server returned ${response.status}`;
+
+        try {
+          const errorData = await response.json();
+
+          if (errorData.detail) {
+            errorMessage = errorData.detail;
+          }
+        } catch {
+          // Keep the default error message
+        }
+
+        throw new Error(errorMessage);
       }
+
+      // --------------------------------------------------
+      // 4. Read backend analysis result
+      // --------------------------------------------------
 
       const result = await response.json();
 
-      /*
-       * Save backend results temporarily so that
-       * Dashboard / Components / Details pages
-       * can use the same analyzed data.
-       */
+      // --------------------------------------------------
+      // 5. Save analysis result for other React pages
+      // --------------------------------------------------
+
       localStorage.setItem(
         "burnInAnalysisResults",
         JSON.stringify(result)
       );
+
+      // --------------------------------------------------
+      // 6. Show success message
+      // --------------------------------------------------
 
       setMessage(
         "CSV analyzed successfully. Results are ready."
@@ -74,10 +115,11 @@ function DataUpload() {
       console.log("Analysis result:", result);
 
     } catch (err) {
-      console.error(err);
+      console.error("Analysis error:", err);
 
       setError(
-        "Could not connect to the FastAPI server. Make sure the backend is running on localhost:8000."
+        err.message ||
+          "Could not connect to the FastAPI server. Make sure the backend is running on localhost:8000."
       );
     } finally {
       setLoading(false);
@@ -148,6 +190,7 @@ function DataUpload() {
               </span>
 
               <div>
+
                 <strong>
                   {selectedFile.name}
                 </strong>
@@ -156,6 +199,7 @@ function DataUpload() {
                   {(selectedFile.size / 1024).toFixed(1)}
                   {" "}KB
                 </p>
+
               </div>
 
             </div>
@@ -170,9 +214,7 @@ function DataUpload() {
         <button
           className="analyze-button"
           onClick={handleAnalyze}
-          disabled={
-            !selectedFile || loading
-          }
+          disabled={!selectedFile || loading}
         >
 
           {loading
@@ -229,10 +271,13 @@ function DataUpload() {
             <span>1</span>
 
             <div>
+
               <strong>CSV Upload</strong>
+
               <p>
                 Component Burn-In measurements
               </p>
+
             </div>
 
           </div>
@@ -248,10 +293,13 @@ function DataUpload() {
             <span>2</span>
 
             <div>
+
               <strong>Module A</strong>
+
               <p>
                 Median/MAD anomaly detection
               </p>
+
             </div>
 
           </div>
@@ -267,10 +315,13 @@ function DataUpload() {
             <span>3</span>
 
             <div>
+
               <strong>Module B</strong>
+
               <p>
                 168h drift prediction
               </p>
+
             </div>
 
           </div>
@@ -286,10 +337,13 @@ function DataUpload() {
             <span>4</span>
 
             <div>
+
               <strong>Dashboard</strong>
+
               <p>
                 Results and explanations
               </p>
+
             </div>
 
           </div>

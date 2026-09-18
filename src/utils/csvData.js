@@ -1,6 +1,23 @@
 // src/utils/csvData.js
 
 export async function loadCSVData() {
+  // First try to use the CSV uploaded by the user.
+  const uploadedCSV = localStorage.getItem(
+    "burnInUploadedCSV"
+  );
+
+  // If an uploaded CSV exists, use it.
+  // Otherwise, fall back to the demo CSV.
+  const text = uploadedCSV
+    ? uploadedCSV
+    : await loadDemoCSV();
+
+  return parseCSV(text);
+}
+
+
+// Load the original demo CSV from /public
+async function loadDemoCSV() {
   const response = await fetch(
     "/synthetic_components_500.csv"
   );
@@ -11,11 +28,21 @@ export async function loadCSVData() {
     );
   }
 
-  const text = await response.text();
+  return await response.text();
+}
 
+
+// Convert CSV text into JavaScript objects
+function parseCSV(text) {
   const lines = text
     .split(/\r?\n/)
     .filter((line) => line.trim() !== "");
+
+  if (lines.length < 2) {
+    throw new Error(
+      "CSV file is empty or contains no data."
+    );
+  }
 
   const headers = lines[0]
     .split(",")

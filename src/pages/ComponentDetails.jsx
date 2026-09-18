@@ -19,19 +19,42 @@ function ComponentDetails() {
   const { id } = useParams();
 
   const [rows, setRows] = useState([]);
+  const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadCSVData()
-      .then((data) => {
+    async function loadComponentDetails() {
+      try {
+        // Load measurement data
+        const data = await loadCSVData();
+
         const componentRows = getComponentData(data, id);
         setRows(componentRows);
+
+        // Load backend analysis results
+        const storedResults =
+          localStorage.getItem("burnInAnalysisResults");
+
+        const analysisResults = storedResults
+          ? JSON.parse(storedResults)
+          : [];
+
+        const componentAnalysis = analysisResults.find(
+          (result) => result.component_id === id
+        );
+
+        setAnalysis(componentAnalysis || null);
         setLoading(false);
-      })
-      .catch((error) => {
-        console.error(error);
+      } catch (error) {
+        console.error(
+          "Failed to load component details:",
+          error
+        );
         setLoading(false);
-      });
+      }
+    }
+
+    loadComponentDetails();
   }, [id]);
 
   if (loading) {
@@ -51,6 +74,7 @@ function ComponentDetails() {
 
   const component = rows[0];
 
+  // Dataset ground truth — informational only
   const defective = rows.some(
     (row) => row.defective === 1
   );
@@ -68,10 +92,16 @@ function ComponentDetails() {
       ? last.leakage_uA - first.leakage_uA
       : 0;
 
-  const risk = defective
+  // Backend screening verdict
+  const finalVerdict =
+    analysis?.final_verdict || "NOT ANALYZED";
+
+  const rejected =
+    finalVerdict === "REJECT";
+
+  // Risk is based on backend verdict
+  const risk = rejected
     ? "High"
-    : leakageIncrease > 15
-    ? "Medium"
     : "Low";
 
   return (
@@ -107,12 +137,12 @@ function ComponentDetails() {
 
           <span
             className={
-              defective
+              rejected
                 ? "status-badge status-anomaly"
                 : "status-badge status-normal"
             }
           >
-            {defective ? "Defective" : "Normal"}
+            {finalVerdict}
           </span>
 
         </div>
@@ -208,7 +238,15 @@ function ComponentDetails() {
           </div>
 
           <p>
-            Defective flag from dataset:
+            Final Verdict:
+            {" "}
+            <strong>
+              {finalVerdict}
+            </strong>
+          </p>
+
+          <p>
+            Dataset Defective Flag:
             {" "}
             <strong>
               {defective ? "Yes" : "No"}
@@ -225,11 +263,89 @@ function ComponentDetails() {
 
           <div className="explanation-box">
 
-            {defective
-              ? "This component is marked defective in the provided dataset."
-              : "This component is not marked defective in the provided dataset."}
+            {analysis?.explanation ||
+              "No backend analysis is available for this component."}
 
           </div>
+
+        </div>
+
+      </div>
+
+      <div className="analysis-grid">
+
+        <div className="detail-card">
+
+          <h3>
+            Module A — Anomaly Detection
+          </h3>
+
+          {analysis?.module_a ? (
+            <>
+              <p>
+                Flagged:
+                {" "}
+                <strong>
+                  {analysis.module_a.flagged
+                    ? "Yes"
+                    : "No"}
+                </strong>
+              </p>
+
+              <p>
+                Anomaly Score:
+                {" "}
+                <strong>
+                  {analysis.module_a.anomaly_score !==
+                  undefined
+                    ? Number(
+                        analysis.module_a.anomaly_score
+                      ).toFixed(3)
+                    : "N/A"}
+                </strong>
+              </p>
+
+              <div className="explanation-box">
+                {analysis.module_a.reason ||
+                  "No Module A reason provided."}
+              </div>
+            </>
+          ) : (
+            <p>
+              Module A analysis not available.
+            </p>
+          )}
+
+        </div>
+
+        <div className="detail-card">
+
+          <h3>
+            Module B — Drift Prediction
+          </h3>
+
+          {analysis?.module_b ? (
+            <>
+              <p>
+                Flagged:
+                {" "}
+                <strong>
+                  {analysis.module_b.flagged
+                    ? "Yes"
+                    : "No"}
+                </strong>
+              </p>
+
+              <div className="explanation-box">
+                {analysis.module_b.reason ||
+                  "No Module B reason provided."}
+              </div>
+            </>
+          ) : (
+            <p>
+              Module B analysis not available.
+            </p>
+          )}
 
         </div>
 
@@ -242,11 +358,9 @@ function ComponentDetails() {
         </h3>
 
         <p>
-
-          {defective
-            ? "Send this component for QA inspection."
-            : "Component can continue normal screening."}
-
+          {rejected
+            ? "Send this component for QA inspection based on the screening result."
+            : "Component can continue normal screening based on the screening result."}
         </p>
 
       </div>
