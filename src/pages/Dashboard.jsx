@@ -1,231 +1,888 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import {
-  loadCSVData,
-  getComponentIds,
-} from "../utils/csvData";
+import { loadCSVData } from "../utils/csvData";
 
-function Components() {
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from "recharts";
+
+function Dashboard({ analysisResults = [] }) {
+
   const [data, setData] = useState([]);
-  const [components, setComponents] = useState([]);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
   const [loading, setLoading] = useState(true);
 
+  const [totalComponents, setTotalComponents] = useState(0);
+  const [passComponents, setPassComponents] = useState(0);
+  const [reviewComponents, setReviewComponents] = useState(0);
+  const [rejectComponents, setRejectComponents] = useState(0);
+  const [totalLots, setTotalLots] = useState(0);
+
+  const [chartData, setChartData] = useState([]);
+
+  /*
+  =====================================================
+  LOAD DASHBOARD DATA
+  =====================================================
+  */
+
   useEffect(() => {
-    async function loadComponentData() {
+
+    async function loadDashboardData() {
+
       try {
-        // Load measurement data from uploaded CSV
+
+        /*
+        -----------------------------------------------
+        LOAD CSV
+        -----------------------------------------------
+        Used only for:
+        - lot count
+        - parameter monitoring chart
+        */
+
         const csv = await loadCSVData();
+
         setData(csv);
 
-        // Load backend analysis results
-        const storedResults =
-          localStorage.getItem("burnInAnalysisResults");
 
-        const analysisResults = storedResults
-          ? JSON.parse(storedResults)
-          : [];
+        /*
+        -----------------------------------------------
+        GET REAL ANALYSIS RESULTS
+        -----------------------------------------------
+        Priority:
 
-        const componentIds = getComponentIds(csv);
+        1. analysisResults from App.jsx
+        2. localStorage fallback
 
-        const componentList = componentIds.map((id) => {
-          const rows = csv.filter(
-            (item) => item.component_id === id
-          );
+        Backend JSON is the source of truth.
+        */
 
-          const first = rows.find(
-            (item) => item.timestamp_h === 0
-          );
+        let results = analysisResults;
 
-          const value24 = rows.find(
-            (item) => item.timestamp_h === 24
-          );
+        if (!results || results.length === 0) {
 
-          const value96 = rows.find(
-            (item) => item.timestamp_h === 96
-          );
+          const storedResults =
+            localStorage.getItem(
+              "burnInAnalysisResults"
+            );
 
-          const value168 = rows.find(
-            (item) => item.timestamp_h === 168
-          );
+          results = storedResults
+            ? JSON.parse(storedResults)
+            : [];
+        }
 
-          // Find this component's backend analysis
-          const analysis = analysisResults.find(
-            (result) => result.component_id === id
-          );
 
-          // Backend is now the source of the screening decision
-          const rejected =
-            analysis?.final_verdict === "REJECT";
+        /*
+        -----------------------------------------------
+        VERDICT COUNTS
+        -----------------------------------------------
+        New architecture:
 
-          return {
-            id,
-            lot: rows[0]?.lot_id ?? "Unknown",
+        PASS
+        FLAG_FOR_REVIEW
+        REJECT
+        */
 
-            value0h: first?.leakage_uA ?? 0,
-            value24h: value24?.leakage_uA ?? 0,
-            value96h: value96?.leakage_uA ?? 0,
-            value168h: value168?.leakage_uA ?? 0,
+        let pass = 0;
+        let review = 0;
+        let reject = 0;
 
-            status: rejected ? "Anomaly" : "Normal",
 
-            // Keep the complete backend result available
-            analysis,
-          };
+        results.forEach((result) => {
+
+          const verdict =
+            String(result?.final_verdict || "")
+              .trim()
+              .toUpperCase();
+
+          if (verdict === "PASS") {
+
+            pass++;
+
+          } else if (
+            verdict === "FLAG_FOR_REVIEW"
+          ) {
+
+            review++;
+
+          } else if (
+            verdict === "REJECT"
+          ) {
+
+            reject++;
+
+          }
+
         });
 
-        setComponents(componentList);
+
+        /*
+        -----------------------------------------------
+        TOTAL ANALYZED COMPONENTS
+        -----------------------------------------------
+        */
+
+        const total = results.length;
+
+
+        /*
+        -----------------------------------------------
+        LOT COUNT
+        -----------------------------------------------
+        */
+
+        const lots = [
+          ...new Set(
+            csv
+              .map((item) => item.lot_id)
+              .filter(Boolean)
+          ),
+        ];
+
+
+        /*
+        -----------------------------------------------
+        UPDATE STATE
+        -----------------------------------------------
+        */
+
+        setTotalComponents(total);
+        setPassComponents(pass);
+        setReviewComponents(review);
+        setRejectComponents(reject);
+        setTotalLots(lots.length);
+
+
+        /*
+        =================================================
+        BURN-IN TREND CHART
+        =================================================
+
+        Supports the existing CSV structure:
+
+        timestamp_h
+        leakage_uA
+        */
+
+        const timestamps = [
+          0,
+          24,
+          96,
+          168,
+        ];
+
+
+        const trend = timestamps.map((time) => {
+
+          const rows = csv.filter(
+            (item) =>
+              Number(item.timestamp_h) === time
+          );
+
+
+          const average =
+            rows.length > 0
+              ? rows.reduce(
+                  (sum, row) =>
+                    sum +
+                    Number(
+                      row.leakage_uA || 0
+                    ),
+                  0
+                ) / rows.length
+              : 0;
+
+
+          return {
+
+            time: `${time}h`,
+
+            leakage:
+              Number(
+                average.toFixed(3)
+              ),
+
+          };
+
+        });
+
+
+        setChartData(trend);
+
         setLoading(false);
+
       } catch (error) {
-        console.error("Failed to load component data:", error);
+
+        console.error(
+          "Failed to load dashboard data:",
+          error
+        );
+
         setLoading(false);
+
       }
+
     }
 
-    loadComponentData();
-  }, []);
 
-  const filteredComponents = components.filter((component) => {
-    const searchText = search.toLowerCase();
+    loadDashboardData();
 
-    const matchesSearch =
-      component.id.toLowerCase().includes(searchText) ||
-      component.lot.toLowerCase().includes(searchText);
+  }, [analysisResults]);
 
-    const matchesStatus =
-      statusFilter === "All" ||
-      component.status === statusFilter;
 
-    return matchesSearch && matchesStatus;
-  });
+  /*
+  =====================================================
+  LOADING
+  =====================================================
+  */
 
   if (loading) {
-    return <div>Loading component data...</div>;
+
+    return (
+      <div className="dashboard-loading">
+
+        Loading Burn-In screening dashboard...
+
+      </div>
+    );
+
   }
 
+
+  /*
+  =====================================================
+  SCREENING TOTAL
+  =====================================================
+  */
+
+  const screenedTotal =
+    passComponents +
+    reviewComponents +
+    rejectComponents;
+
+
+  /*
+  =====================================================
+  PERCENTAGES
+  =====================================================
+  */
+
+  const passPercentage =
+    screenedTotal > 0
+      ? (passComponents / screenedTotal) * 100
+      : 0;
+
+  const reviewPercentage =
+    screenedTotal > 0
+      ? (reviewComponents / screenedTotal) * 100
+      : 0;
+
+  const rejectPercentage =
+    screenedTotal > 0
+      ? (rejectComponents / screenedTotal) * 100
+      : 0;
+
+
+  /*
+  =====================================================
+  SYSTEM CONDITION
+  =====================================================
+  */
+
+  const systemReady =
+    totalComponents > 0;
+
+
   return (
-    <div className="components-page">
 
-      <div className="page-heading">
-        <h2>Components</h2>
-        <p>
-          Monitor components from the uploaded Burn-In dataset.
-        </p>
-      </div>
+    <div className="dashboard-page">
 
-      <div className="component-controls">
 
-        <input
-          type="text"
-          placeholder="Search Component ID or Lot ID..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      {/* =================================================
+          HEADER
+      ================================================= */}
 
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-        >
-          <option value="All">All Status</option>
-          <option value="Normal">Normal</option>
-          <option value="Anomaly">Anomaly</option>
-        </select>
+      <div className="dashboard-heading">
 
-      </div>
+        <div>
 
-      <div className="components-card">
+          <span className="dashboard-eyebrow">
+            BURN-IN SCREENING SYSTEM
+          </span>
 
-        <div className="component-table-container">
+          <h1>
+            Screening Dashboard
+          </h1>
 
-          <table>
+          <p>
+            System-level overview of component anomaly
+            detection and 168h drift prediction.
+          </p>
 
-            <thead>
-              <tr>
-                <th>Component ID</th>
-                <th>Lot ID</th>
-                <th>0h Leakage</th>
-                <th>24h Leakage</th>
-                <th>96h Leakage</th>
-                <th>168h Leakage</th>
-                <th>Status</th>
-              </tr>
-            </thead>
+        </div>
 
-            <tbody>
 
-              {filteredComponents.map((component) => (
+        <div className="dashboard-status">
 
-                <tr key={component.id}>
+          <span className="status-dot"></span>
 
-                  <td>
-                    <Link
-                      to={`/components/${component.id}`}
-                      className="component-link"
-                    >
-                      <strong>
-                        {component.id}
-                      </strong>
-                    </Link>
-                  </td>
-
-                  <td>{component.lot}</td>
-
-                  <td>
-                    {component.value0h.toFixed(3)} µA
-                  </td>
-
-                  <td>
-                    {component.value24h.toFixed(3)} µA
-                  </td>
-
-                  <td>
-                    {component.value96h.toFixed(3)} µA
-                  </td>
-
-                  <td>
-                    {component.value168h.toFixed(3)} µA
-                  </td>
-
-                  <td>
-                    {component.status === "Anomaly" ? (
-                      <span className="status-badge status-anomaly">
-                        Anomaly
-                      </span>
-                    ) : (
-                      <span className="status-badge status-normal">
-                        Normal
-                      </span>
-                    )}
-                  </td>
-
-                </tr>
-
-              ))}
-
-              {filteredComponents.length === 0 && (
-                <tr>
-                  <td colSpan="7" className="no-results">
-                    No components found.
-                  </td>
-                </tr>
-              )}
-
-            </tbody>
-
-          </table>
+          {systemReady
+            ? "SYSTEM READY"
+            : "WAITING FOR ANALYSIS"}
 
         </div>
 
       </div>
 
-      <p style={{ marginTop: "15px", color: "#6b7280" }}>
-        Showing {filteredComponents.length} of{" "}
-        {components.length} components from the CSV dataset.
-      </p>
+
+      {/* =================================================
+          SUMMARY
+      ================================================= */}
+
+      <div className="dashboard-stats">
+
+
+        {/* TOTAL */}
+
+        <div className="dashboard-stat-card">
+
+          <span className="stat-label">
+            TOTAL COMPONENTS
+          </span>
+
+          <strong>
+            {totalComponents}
+          </strong>
+
+          <small>
+            Components analyzed
+          </small>
+
+        </div>
+
+
+        {/* PASS */}
+
+        <div className="dashboard-stat-card">
+
+          <span className="stat-label">
+            PASS
+          </span>
+
+          <strong className="stat-normal">
+            {passComponents}
+          </strong>
+
+          <small>
+            Within screening criteria
+          </small>
+
+        </div>
+
+
+        {/* FLAG FOR REVIEW */}
+
+        <div className="dashboard-stat-card">
+
+          <span className="stat-label">
+            FLAG FOR REVIEW
+          </span>
+
+          <strong
+            style={{
+              color: "#d97706",
+            }}
+          >
+            {reviewComponents}
+          </strong>
+
+          <small>
+            Requires manual inspection
+          </small>
+
+        </div>
+
+
+        {/* REJECT */}
+
+        <div className="dashboard-stat-card">
+
+          <span className="stat-label">
+            REJECT
+          </span>
+
+          <strong className="stat-anomaly">
+            {rejectComponents}
+          </strong>
+
+          <small>
+            High-risk components
+          </small>
+
+        </div>
+
+      </div>
+
+
+      {/* =================================================
+          MAIN GRID
+      ================================================= */}
+
+      <div className="dashboard-main-grid">
+
+
+        {/* =================================================
+            SCREENING OVERVIEW
+        ================================================= */}
+
+        <div className="dashboard-card screening-card">
+
+          <div className="dashboard-card-header">
+
+            <div>
+
+              <span className="section-code">
+                SCREENING / 01
+              </span>
+
+              <h2>
+                Screening Overview
+              </h2>
+
+            </div>
+
+          </div>
+
+
+          <div className="screening-overview">
+
+
+            {/* PASS */}
+
+            <div className="screening-row">
+
+              <div className="screening-label">
+
+                <span
+                  className="indicator normal-indicator"
+                ></span>
+
+                Pass
+
+              </div>
+
+              <strong>
+                {passComponents}
+              </strong>
+
+            </div>
+
+
+            <div className="screening-bar">
+
+              <div
+                className="screening-bar-normal"
+                style={{
+                  width:
+                    `${passPercentage}%`,
+                }}
+              ></div>
+
+            </div>
+
+
+            {/* FLAG FOR REVIEW */}
+
+            <div className="screening-row">
+
+              <div className="screening-label">
+
+                <span
+                  className="indicator"
+                  style={{
+                    backgroundColor:
+                      "#d97706",
+                  }}
+                ></span>
+
+                Flag for Review
+
+              </div>
+
+              <strong>
+                {reviewComponents}
+              </strong>
+
+            </div>
+
+
+            <div className="screening-bar">
+
+              <div
+                style={{
+                  width:
+                    `${reviewPercentage}%`,
+                  height: "100%",
+                  backgroundColor:
+                    "#d97706",
+                }}
+              ></div>
+
+            </div>
+
+
+            {/* REJECT */}
+
+            <div className="screening-row">
+
+              <div className="screening-label">
+
+                <span
+                  className="indicator anomaly-indicator"
+                ></span>
+
+                Reject
+
+              </div>
+
+              <strong>
+                {rejectComponents}
+              </strong>
+
+            </div>
+
+
+            <div className="screening-bar">
+
+              <div
+                className="screening-bar-anomaly"
+                style={{
+                  width:
+                    `${rejectPercentage}%`,
+                }}
+              ></div>
+
+            </div>
+
+
+          </div>
+
+        </div>
+
+
+        {/* =================================================
+            SYSTEM STATUS
+        ================================================= */}
+
+        <div className="dashboard-card system-card">
+
+          <div className="dashboard-card-header">
+
+            <div>
+
+              <span className="section-code">
+                SYSTEM / 02
+              </span>
+
+              <h2>
+                System Status
+              </h2>
+
+            </div>
+
+          </div>
+
+
+          <div className="system-status-list">
+
+
+            {/* DATASET */}
+
+            <div className="system-status-row">
+
+              <div>
+
+                <span className="system-indicator"></span>
+
+                Dataset
+
+              </div>
+
+              <strong>
+                {data.length > 0
+                  ? "LOADED"
+                  : "WAITING"}
+              </strong>
+
+            </div>
+
+
+            {/* MODULE A */}
+
+            <div className="system-status-row">
+
+              <div>
+
+                <span className="system-indicator"></span>
+
+                Module A
+
+              </div>
+
+              <strong>
+                {totalComponents > 0
+                  ? "READY"
+                  : "WAITING"}
+              </strong>
+
+            </div>
+
+
+            {/* MODULE B */}
+
+            <div className="system-status-row">
+
+              <div>
+
+                <span className="system-indicator"></span>
+
+                Module B
+
+              </div>
+
+              <strong>
+                {totalComponents > 0
+                  ? "READY"
+                  : "WAITING"}
+              </strong>
+
+            </div>
+
+
+            {/* PROCESSING */}
+
+            <div className="system-status-row">
+
+              <div>
+
+                <span className="system-indicator"></span>
+
+                Processing
+
+              </div>
+
+              <strong>
+                LOCAL
+              </strong>
+
+            </div>
+
+
+          </div>
+
+        </div>
+
+      </div>
+
+
+      {/* =================================================
+          CHART
+      ================================================= */}
+
+      <div className="dashboard-card dashboard-chart-card">
+
+        <div className="dashboard-card-header">
+
+          <div>
+
+            <span className="section-code">
+              PARAMETER / 03
+            </span>
+
+            <h2>
+              Burn-In Parameter Monitoring
+            </h2>
+
+            <p>
+              Average leakage measurement across
+              available Burn-In time points.
+            </p>
+
+          </div>
+
+
+          <div className="chart-unit">
+
+            Leakage
+
+            <span>
+              µA
+            </span>
+
+          </div>
+
+        </div>
+
+
+        <div className="dashboard-chart">
+
+          <ResponsiveContainer
+            width="100%"
+            height={320}
+          >
+
+            <LineChart
+              data={chartData}
+            >
+
+              <CartesianGrid
+                strokeDasharray="3 3"
+              />
+
+              <XAxis
+                dataKey="time"
+              />
+
+              <YAxis />
+
+              <Tooltip />
+
+
+              <Line
+                type="monotone"
+                dataKey="leakage"
+                stroke="#1d4ed8"
+                strokeWidth={3}
+                dot={{
+                  r: 4,
+                }}
+                activeDot={{
+                  r: 6,
+                }}
+              />
+
+            </LineChart>
+
+          </ResponsiveContainer>
+
+        </div>
+
+      </div>
+
+
+      {/* =================================================
+          MODULES
+      ================================================= */}
+
+      <div className="dashboard-module-grid">
+
+
+        {/* MODULE A */}
+
+        <div className="dashboard-module-card">
+
+          <div className="module-number">
+            A
+          </div>
+
+          <div>
+
+            <span className="section-code">
+              MODULE A
+            </span>
+
+            <h3>
+              Statistical Anomaly Detection
+            </h3>
+
+            <p>
+              Lot-relative screening using
+              Median / MAD z-score analysis
+              and failure-signature matching.
+            </p>
+
+          </div>
+
+          <div className="module-status">
+            ACTIVE
+          </div>
+
+        </div>
+
+
+        {/* MODULE B */}
+
+        <div className="dashboard-module-card">
+
+          <div className="module-number">
+            B
+          </div>
+
+          <div>
+
+            <span className="section-code">
+              MODULE B
+            </span>
+
+            <h3>
+              168h Drift Prediction
+            </h3>
+
+            <p>
+              Log-linear drift prediction compared
+              with the global safety slope.
+            </p>
+
+          </div>
+
+          <div className="module-status">
+            ACTIVE
+          </div>
+
+        </div>
+
+
+      </div>
+
+
+      {/* =================================================
+          SCREENING NOTE
+      ================================================= */}
+
+      <div className="dashboard-note">
+
+        <strong>
+          SCREENING NOTE
+        </strong>
+
+        <span>
+
+          Final component screening decisions are based
+          on the backend analysis results:
+
+          {" "}
+          PASS,
+          {" "}
+          FLAG_FOR_REVIEW,
+          {" "}
+          or
+          {" "}
+          REJECT.
+
+        </span>
+
+      </div>
+
 
     </div>
+
   );
+
 }
 
-export default Components;
+export default Dashboard;
