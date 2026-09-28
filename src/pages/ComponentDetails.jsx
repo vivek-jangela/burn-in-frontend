@@ -180,19 +180,30 @@ function ComponentDetails() {
 
         <ResponsiveContainer
           width="100%"
-          height={350}
+          height={380}
         >
-          <LineChart data={rows}>
+          <LineChart data={rows}
+          margin={{
+      top: 15,
+      right: 25,
+      left: 20,
+      bottom: 10,
+    }}>
 
             <CartesianGrid strokeDasharray="3 3" />
 
             <XAxis
               dataKey="timestamp_h"
+              //   tick={{ fontSize: 13 }}
               label={{
                 value: "Time (hours)",
-                position: "insideBottom",
-                offset: -5,
+                position: "Bottom",
+                offset: 25,
+                
               }}
+                // dataKey="timestamp_h"
+                // tick={{ fontSize: 13 }}
+                // tickMargin={10}
             />
 
             <YAxis
@@ -200,6 +211,7 @@ function ComponentDetails() {
                 value: "Leakage (µA)",
                 angle: -90,
                 position: "insideLeft",
+                offset: 5,
               }}
             />
 
@@ -214,6 +226,10 @@ function ComponentDetails() {
 
           </LineChart>
         </ResponsiveContainer>
+{/* 
+  <div className="chart-axis-label">
+    Time (hours)
+  </div> */}
 
       </div>
 
@@ -227,27 +243,22 @@ function ComponentDetails() {
 
           <div className="risk-display">
 
-            <span>
-              Risk Level
-            </span>
-
-            <strong>
-              {risk}
-            </strong>
+          <span>Risk Level : </span>
+          <strong>{risk}</strong>
 
           </div>
 
           <p>
-            Final Verdict:
-            {" "}
+            Final Verdict :
+            { " "}
             <strong>
               {finalVerdict}
             </strong>
           </p>
 
           <p>
-            Dataset Defective Flag:
-            {" "}
+            Dataset Defective Flag :
+            {  " "}
             <strong>
               {defective ? "Yes" : "No"}
             </strong>
@@ -283,8 +294,8 @@ function ComponentDetails() {
           {analysis?.module_a ? (
             <>
               <p>
-                Flagged:
-                {" "}
+                Flagged :
+                { " "}
                 <strong>
                   {analysis.module_a.flagged
                     ? "Yes"
@@ -293,8 +304,8 @@ function ComponentDetails() {
               </p>
 
               <p>
-                Anomaly Score:
-                {" "}
+                Anomaly Score :
+                { " "}
                 <strong>
                   {analysis.module_a.anomaly_score !==
                   undefined
@@ -327,8 +338,8 @@ function ComponentDetails() {
           {analysis?.module_b ? (
             <>
               <p>
-                Flagged:
-                {" "}
+                Flagged :
+                { " "}
                 <strong>
                   {analysis.module_b.flagged
                     ? "Yes"
@@ -356,12 +367,11 @@ function ComponentDetails() {
         <h3>
           QA Recommendation
         </h3>
-
-        <p>
-          {rejected
-            ? "Send this component for QA inspection based on the screening result."
-            : "Component can continue normal screening based on the screening result."}
-        </p>
+        <div className="recommendation-text">
+        {rejected
+          ? "Send this component for QA inspection based on the screening result."
+          : "Component can continue normal screening based on the screening result."}
+        </div>
 
       </div>
 
