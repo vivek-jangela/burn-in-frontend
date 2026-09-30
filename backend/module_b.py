@@ -1,4 +1,9 @@
+"""DriftGuard Module B inference using the frozen XGBoost v3 artifact."""
+
+from __future__ import annotations
+
 from pathlib import Path
+from typing import Dict
 
 import joblib
 import numpy as np
@@ -8,349 +13,212 @@ import pandas as pd
 MODEL_PATH = (
     Path(__file__).resolve().parent
     / "models"
-    / "driftguard_module_b.pkl"
+    / "driftguard_module_b_v3_FINAL.pkl"
 )
 
+PARAMETERS = ("iddq", "leakage", "prop_delay")
+EXPECTED_RAW_FEATURES = [
+    "iddq_0h",
+    "iddq_24h",
+    "leakage_0h",
+    "leakage_24h",
+    "prop_delay_0h",
+    "prop_delay_24h",
+]
+EXPECTED_ENGINEERED_FEATURES = [
+    "iddq_delta_24h",
+    "iddq_rate_24h",
+    "iddq_ratio_24h",
+    "leakage_delta_24h",
+    "leakage_rate_24h",
+    "leakage_ratio_24h",
+    "prop_delay_delta_24h",
+    "prop_delay_rate_24h",
+    "prop_delay_ratio_24h",
+]
 
-# --------------------------------------------------
-# Load trained Module B once
-# --------------------------------------------------
+FROZEN_THRESHOLD = 1.25
+PREDICTION_HORIZON_HOURS = 168.0
 
-MODULE_B = joblib.load(MODEL_PATH)
+# Frozen constants from the supplied v3 specification/artifact.
+FROZEN_SAFETY_SLOPES = {
+    "iddq": 0.027820833,
+    "leakage": 0.024041667,
+    "prop_delay": 0.010827083,
+}
 
 
+def _load_bundle() -> dict:
+    if not MODEL_PATH.exists():
+        raise FileNotFoundError(f"Module B model not found: {MODEL_PATH}")
+
+    bundle = joblib.load(MODEL_PATH)
+
+    feature_columns = bundle.get("feature_columns")
+    if feature_columns != EXPECTED_RAW_FEATURES + EXPECTED_ENGINEERED_FEATURES:
+        raise ValueError(
+            "Frozen Module B artifact feature_columns do not match the v3 contract."
+        )
+
+    if float(bundle.get("ratio_threshold")) != FROZEN_THRESHOLD:
+        raise ValueError(
+            "Frozen Module B artifact threshold differs from the required 1.25."
+        )
+
+    artifact_slopes = bundle.get("safety_slopes", {})
+    for parameter, expected in FROZEN_SAFETY_SLOPES.items():
+        if not np.isclose(float(artifact_slopes.get(parameter)), expected):
+            raise ValueError(
+                f"Frozen Module B artifact safety slope mismatch for {parameter}."
+            )
+
+    if set(bundle.get("models", {})) != set(PARAMETERS):
+        raise ValueError("Frozen Module B artifact must contain three parameter models.")
+
+    return bundle
+
+
+MODULE_B = _load_bundle()
 MODELS = MODULE_B["models"]
-SAFETY_SLOPES = MODULE_B["safety_slopes"]
-FEATURES = MODULE_B["features"]
-
-PREDICTION_HORIZON = MODULE_B["prediction_horizon"]
-REFERENCE_TIMESTAMP = MODULE_B["reference_timestamp"]
+FEATURES = MODULE_B["feature_columns"]
+SAFETY_SLOPES = FROZEN_SAFETY_SLOPES.copy()
 
 
-def _prepare_wide_data(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Convert the SIH long-format CSV into one row
-    per component with 0h, 24h and 168h values.
-    """
+def add_drift_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Reproduce the exact 15-feature engineering used by the frozen model."""
+    out = df.copy()
+    for parameter in PARAMETERS:
+        v0 = out[f"{parameter}_0h"].astype(float)
+        v24 = out[f"{parameter}_24h"].astype(float)
 
-    required = [
-        "component_id",
-        "lot_id",
-        "timestamp_h",
-        "iddq_uA",
-        "leakage_uA",
-        "prop_delay_ns",
-    ]
-
-    missing = [
-        column
-        for column in required
-        if column not in df.columns
-    ]
-
-    if missing:
-        raise ValueError(
-            f"Module B missing required columns: {missing}"
+        out[f"{parameter}_delta_24h"] = v24 - v0
+        out[f"{parameter}_rate_24h"] = (v24 - v0) / 24.0
+        out[f"{parameter}_ratio_24h"] = np.where(
+            np.abs(v0) > 1e-12,
+            v24 / v0,
+            1.0,
         )
-
-    # Module B needs early measurements.
-    available = df[
-        df["timestamp_h"].isin([0, 24, 168])
-    ].copy()
-
-    wide = available.pivot_table(
-        index=["component_id", "lot_id"],
-        columns="timestamp_h",
-        values=[
-            "iddq_uA",
-            "leakage_uA",
-            "prop_delay_ns",
-        ],
-        aggfunc="first",
-    )
-
-    # Flatten MultiIndex columns.
-    wide.columns = [
-        f"{parameter}_{int(timestamp)}h"
-        for parameter, timestamp
-        in wide.columns
-    ]
-
-    wide = wide.reset_index()
-
-    return wide
+    return out
 
 
-def _predict_parameter(
-    wide_df: pd.DataFrame,
-    parameter_key: str,
+
+def _predict_for_parameter(
+    feature_frame: pd.DataFrame,
+    source_df: pd.DataFrame,
+    parameter: str,
 ) -> pd.DataFrame:
+    model = MODELS[parameter]
+    prediction = np.asarray(model.predict(feature_frame[FEATURES]), dtype=float)
 
-    model = MODELS[parameter_key]
-    safety_slope = SAFETY_SLOPES[parameter_key]
+    v0 = source_df[f"{parameter}_0h"].to_numpy(dtype=float)
+    v24 = source_df[f"{parameter}_24h"].to_numpy(dtype=float)
 
-    feature_columns = FEATURES[parameter_key]
+    # Locked v3 formula from the acceptance criteria:
+    # max(|pred_168h - v0|, |pred_168h - v24|) /
+    # (safety_slope * 168h)
+    predicted_drift = np.maximum(
+        np.abs(prediction - v0),
+        np.abs(prediction - v24),
+    )
+    safety_drift = SAFETY_SLOPES[parameter] * PREDICTION_HORIZON_HOURS
+    drift_ratio = predicted_drift / safety_drift
+    flagged = drift_ratio > FROZEN_THRESHOLD
 
-    # Ensure required early measurements exist.
-    missing = [
-        column
-        for column in feature_columns
-        if column not in wide_df.columns
-    ]
+    return pd.DataFrame(
+        {
+            "predicted_168h": prediction,
+            "predicted_drift": predicted_drift,
+            "safety_drift": safety_drift,
+            "drift_ratio": drift_ratio,
+            "flagged": flagged,
+        },
+        index=source_df.index,
+    )
 
+
+
+def predict_drift(df: pd.DataFrame) -> pd.DataFrame:
+    """Run Module B for one-row-per-component wide input."""
+    required = ["component_id", "lot_id", *EXPECTED_RAW_FEATURES]
+    missing = [column for column in required if column not in df.columns]
     if missing:
-        raise ValueError(
-            f"Module B missing {parameter_key} features: "
-            f"{missing}"
+        raise ValueError(f"Module B missing required columns: {missing}")
+
+    if df[EXPECTED_RAW_FEATURES].isna().any().any():
+        raise ValueError("Module B received missing 0h/24h values.")
+
+    feature_frame = add_drift_features(df)
+    result = df[["component_id", "lot_id"]].copy()
+    per_parameter: Dict[str, pd.DataFrame] = {}
+
+    for parameter in PARAMETERS:
+        per_parameter[parameter] = _predict_for_parameter(
+            feature_frame,
+            df,
+            parameter,
         )
 
-    input_data = wide_df[feature_columns]
+        prediction_result = per_parameter[parameter]
+        result[f"{parameter}_predicted_168h"] = prediction_result["predicted_168h"].to_numpy()
+        result[f"{parameter}_predicted_drift"] = prediction_result["predicted_drift"].to_numpy()
+        result[f"{parameter}_safety_drift"] = prediction_result["safety_drift"].to_numpy()
+        result[f"{parameter}_drift_ratio"] = prediction_result["drift_ratio"].to_numpy()
+        result[f"{parameter}_flagged"] = prediction_result["flagged"].to_numpy(dtype=bool)
 
-    if input_data.isnull().any().any():
-        raise ValueError(
-            f"Missing 0h/24h values for Module B "
-            f"parameter: {parameter_key}"
-        )
+    ratio_columns = [f"{p}_drift_ratio" for p in PARAMETERS]
+    flag_columns = [f"{p}_flagged" for p in PARAMETERS]
 
-    predictions = model.predict(input_data)
-
-    parameter_map = {
-        "iddq": "iddq_uA",
-        "leakage": "leakage_uA",
-        "prop_delay": "prop_delay_ns",
-    }
-
-    base_parameter = parameter_map[parameter_key]
-
-    value_24h_column = (
-        f"{base_parameter}_24h"
+    result["max_drift_ratio"] = result[ratio_columns].max(axis=1)
+    result["flagged"] = result[flag_columns].any(axis=1)
+    result["dominant_parameter"] = result[ratio_columns].idxmax(axis=1).str.replace(
+        "_drift_ratio", "", regex=False
     )
+    result["model_used"] = "xgboost_v3"
+    result["threshold_multiplier"] = FROZEN_THRESHOLD
 
-    actual_24h = wide_df[value_24h_column].to_numpy()
+    def flagged_parameters(row: pd.Series) -> list[str]:
+        return [
+            parameter
+            for parameter in PARAMETERS
+            if bool(row[f"{parameter}_flagged"])
+        ]
 
-    # Exact notebook logic:
-    # (predicted 168h - actual 24h) / 144
-    drift_rate = (
-        predictions - actual_24h
-    ) / (
-        PREDICTION_HORIZON
-        - REFERENCE_TIMESTAMP
-    )
+    result["flagged_parameters"] = result.apply(flagged_parameters, axis=1)
 
-    # Exact notebook decision:
-    # predicted drift > safety slope
-    flagged = drift_rate > safety_slope
+    def make_reason(row: pd.Series) -> str:
+        flagged = row["flagged_parameters"]
+        if not flagged:
+            return "Predicted 168h drift remains within the frozen safety ratio threshold for all parameters."
 
-    # Continuous risk ratio.
-    if safety_slope == 0:
-        drift_ratio = np.where(
-            drift_rate > 0,
-            np.inf,
-            0,
-        )
-    else:
-        drift_ratio = (
-            drift_rate / safety_slope
-        )
-
-    return pd.DataFrame({
-        "predicted_168h": predictions,
-        "predicted_drift_rate": drift_rate,
-        "safety_slope": safety_slope,
-        "drift_ratio": drift_ratio,
-        "flagged": flagged,
-    })
-
-
-def predict_drift(
-    df: pd.DataFrame,
-) -> pd.DataFrame:
-    """
-    Module B inference.
-
-    Takes the raw SIH CSV dataframe and returns
-    component-level drift prediction results.
-    """
-
-    wide = _prepare_wide_data(df)
-
-    iddq = _predict_parameter(
-        wide,
-        "iddq",
-    )
-
-    leakage = _predict_parameter(
-        wide,
-        "leakage",
-    )
-
-    prop_delay = _predict_parameter(
-        wide,
-        "prop_delay",
-    )
-
-    results = wide[
-        ["component_id", "lot_id"]
-    ].copy()
-
-    # --------------------------------------------------
-    # IDDQ
-    # --------------------------------------------------
-
-    results["iddq_predicted_168h"] = (
-        iddq["predicted_168h"]
-    )
-
-    results["iddq_predicted_drift_rate"] = (
-        iddq["predicted_drift_rate"]
-    )
-
-    results["iddq_safety_slope"] = (
-        iddq["safety_slope"]
-    )
-
-    results["iddq_drift_ratio"] = (
-        iddq["drift_ratio"]
-    )
-
-    results["iddq_flagged"] = (
-        iddq["flagged"]
-    )
-
-    # --------------------------------------------------
-    # Leakage
-    # --------------------------------------------------
-
-    results["leakage_predicted_168h"] = (
-        leakage["predicted_168h"]
-    )
-
-    results["leakage_predicted_drift_rate"] = (
-        leakage["predicted_drift_rate"]
-    )
-
-    results["leakage_safety_slope"] = (
-        leakage["safety_slope"]
-    )
-
-    results["leakage_drift_ratio"] = (
-        leakage["drift_ratio"]
-    )
-
-    results["leakage_flagged"] = (
-        leakage["flagged"]
-    )
-
-    # --------------------------------------------------
-    # Propagation delay
-    # --------------------------------------------------
-
-    results["prop_delay_predicted_168h"] = (
-        prop_delay["predicted_168h"]
-    )
-
-    results["prop_delay_predicted_drift_rate"] = (
-        prop_delay["predicted_drift_rate"]
-    )
-
-    results["prop_delay_safety_slope"] = (
-        prop_delay["safety_slope"]
-    )
-
-    results["prop_delay_drift_ratio"] = (
-        prop_delay["drift_ratio"]
-    )
-
-    results["prop_delay_flagged"] = (
-        prop_delay["flagged"]
-    )
-
-    # --------------------------------------------------
-    # Final Module B decision
-    # --------------------------------------------------
-
-    flag_columns = [
-        "iddq_flagged",
-        "leakage_flagged",
-        "prop_delay_flagged",
-    ]
-
-    results["flagged"] = (
-        results[flag_columns]
-        .max(axis=1)
-        .astype(bool)
-    )
-
-    # --------------------------------------------------
-    # Flagged parameters
-    # --------------------------------------------------
-
-    def get_flagged_parameters(row):
-
-        parameters = []
-
-        if row["iddq_flagged"]:
-            parameters.append("IDDQ")
-
-        if row["leakage_flagged"]:
-            parameters.append("Leakage")
-
-        if row["prop_delay_flagged"]:
-            parameters.append("Propagation Delay")
-
-        return parameters
-
-    results["flagged_parameters"] = (
-        results.apply(
-            get_flagged_parameters,
-            axis=1,
-        )
-    )
-
-    # --------------------------------------------------
-    # Explanation
-    # --------------------------------------------------
-
-    def make_reason(row):
-
-        messages = []
-
-        if row["iddq_flagged"]:
-            messages.append(
-                f"IDDQ drift ratio = "
-                f"{row['iddq_drift_ratio']:.2f}x "
-                f"safety slope"
+        pieces = []
+        for parameter in flagged:
+            pieces.append(
+                f"{_display_parameter(parameter)} drift ratio = "
+                f"{row[f'{parameter}_drift_ratio']:.2f}x"
             )
-
-        if row["leakage_flagged"]:
-            messages.append(
-                f"Leakage drift ratio = "
-                f"{row['leakage_drift_ratio']:.2f}x "
-                f"safety slope"
-            )
-
-        if row["prop_delay_flagged"]:
-            messages.append(
-                f"Propagation Delay drift ratio = "
-                f"{row['prop_delay_drift_ratio']:.2f}x "
-                f"safety slope"
-            )
-
-        if not messages:
-            return (
-                "Predicted drift remains within "
-                "the global safety slope for all parameters."
-            )
-
         return (
-            "Predicted drift exceeds the global "
-            "safety slope: "
-            + "; ".join(messages)
+            "Module B flag: "
+            + "; ".join(pieces)
+            + f" (threshold {FROZEN_THRESHOLD:.2f}x)."
         )
 
-    results["reason"] = results.apply(
-        make_reason,
-        axis=1,
-    )
+    result["reason"] = result.apply(make_reason, axis=1)
+    return result
 
-    return results
+
+
+def _display_parameter(parameter: str) -> str:
+    return {
+        "iddq": "IDDQ",
+        "leakage": "Leakage",
+        "prop_delay": "Propagation Delay",
+    }[parameter]
+
+
+__all__ = [
+    "FROZEN_SAFETY_SLOPES",
+    "FROZEN_THRESHOLD",
+    "MODEL_PATH",
+    "add_drift_features",
+    "predict_drift",
+]
