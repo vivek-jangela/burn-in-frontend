@@ -1,32 +1,25 @@
+from pathlib import Path
+
 import pandas as pd
 
-from module_a import detect_outliers
+from module_a import ANOMALY_THRESHOLD, TOLERANCE, detect_outliers
 
 
-CSV_PATH = "data/SIH_Dataset_v1.0.csv"
+ROOT = Path(__file__).resolve().parents[3]
 
 
-def main():
-
-    df = pd.read_csv(CSV_PATH)
-
+def test_module_a_on_v2():
+    df = pd.read_csv(ROOT / "data" / "synthetic_components_v2_stresstest.csv")
     result = detect_outliers(df)
 
-    print("\nModule A successfully executed.\n")
-
-    print(
-        result[
-            [
-                "component_id",
-                "lot_id",
-                "timestamp_h",
-                "anomaly_score",
-                "flagged",
-                "reason",
-            ]
-        ].head(20)
-    )
-
-
-if __name__ == "__main__":
-    main()
+    assert len(result) == len(df)
+    assert result["flagged"].dtype == bool
+    assert ANOMALY_THRESHOLD == 4.5
+    assert TOLERANCE == 0.02
+    assert set(result.columns) >= {
+        "component_id",
+        "lot_id",
+        "anomaly_score",
+        "flagged",
+        "signature",
+    }
